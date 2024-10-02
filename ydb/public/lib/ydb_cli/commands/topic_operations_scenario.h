@@ -92,8 +92,8 @@ protected:
 
     void DropTable(const TString& database, const TString& table);
 
-    void ExecSchemeQuery(const TString& query);
-    void ExecDataQuery(const TString& query, const NYdb::TParams& params);
+    void ExecQuery(const TString& query);
+    void ExecQuery(const TString& query, const NYdb::TParams& params);
 
     void StartConsumerThreads(std::vector<std::future<void>>& threads,
                               const TString& database);

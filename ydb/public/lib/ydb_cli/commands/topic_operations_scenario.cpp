@@ -126,21 +126,19 @@ void TTopicOperationsScenario::DropTable(const TString& database, const TString&
     ThrowOnError(result);
 }
 
-void TTopicOperationsScenario::ExecSchemeQuery(const TString& query)
+void TTopicOperationsScenario::ExecQuery(const TString& query)
 {
-    NTable::TTableClient client(*Driver);
-    auto session = GetSession(client);
-    auto result = session.ExecuteSchemeQuery(query).GetValueSync();
+    NQuery::TQueryClient client(*Driver);
+    auto result = client.StreamExecuteQuery(query, NQuery::TTxControl::NoTx()).GetValueSync();
     ThrowOnError(result);
 }
 
-void TTopicOperationsScenario::ExecDataQuery(const TString& query,
+void TTopicOperationsScenario::ExecQuery(const TString& query,
                                              const NYdb::TParams& params)
 {
-    NTable::TTableClient client(*Driver);
-    auto session = GetSession(client);
-    auto result = session.ExecuteDataQuery(query,
-                                           NTable::TTxControl::BeginTx(NTable::TTxSettings::SerializableRW()).CommitTx(),
+    NQuery::TQueryClient client(*Driver);
+    auto result = client.StreamExecuteQuery(query,
+                                           NQuery::TTxControl::NoTx(),
                                            params).ExtractValueSync();
     ThrowOnError(result);
 }

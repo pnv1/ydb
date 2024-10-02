@@ -28,7 +28,7 @@ void TCommandWorkloadTransferTopicToTableInit::TScenario::CreateWriteOnlyTable(c
     query << partitionCount;
     query << ")";
 
-    ExecSchemeQuery(query);
+    ExecQuery(query);
 }
 
 void TCommandWorkloadTransferTopicToTableInit::TScenario::CreateReadOnlyTable(const TString& name,
@@ -43,7 +43,7 @@ void TCommandWorkloadTransferTopicToTableInit::TScenario::CreateReadOnlyTable(co
     query << partitionCount;
     query << ")";
 
-    ExecSchemeQuery(query);
+    ExecQuery(query);
 
     for (int i = 0; i < 10; ++i) {
         UpsertRandomKeyBlock();
@@ -75,7 +75,7 @@ void TCommandWorkloadTransferTopicToTableInit::TScenario::UpsertRandomKeyBlock()
 
     auto params = builder.Build();
 
-    ExecDataQuery(query, params);
+    ExecQuery(query, params);
 }
 
 TCommandWorkloadTransferTopicToTableInit::TCommandWorkloadTransferTopicToTableInit() :
