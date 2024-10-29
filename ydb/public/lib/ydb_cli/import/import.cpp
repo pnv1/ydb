@@ -527,7 +527,13 @@ TStatus TImportFileClient::UpsertCsvByBlocks(const TString& filePath,
 
     TMaxInflightGetter inFlightGetter(settings.MaxInFlightRequests_, CurrentFileCount);
     TString headerRow;
+    if (RetrySettings.Verbose_) {
+        Cerr << "Splitting file " << filePath << " into chunks..." << Endl;
+    }
     TCsvFileReader splitter(filePath, settings, headerRow, inFlightGetter);
+    if (RetrySettings.Verbose_) {
+        Cerr << "Split file " << filePath << "into " << splitter.GetSplitCount() << "chunks." << filePath << Endl;
+    }
 
     auto columnTypes = GetColumnTypes();
     ValidateTValueUpsertTable();
