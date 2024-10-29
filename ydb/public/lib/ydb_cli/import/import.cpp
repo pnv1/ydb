@@ -126,22 +126,22 @@ FHANDLE GetStdinFileno() {
 
 class TMaxInflightGetter {
 public:
-    TMaxInflightGetter(ui64 totalMaxInFlight, std::atomic<ui64>& currentFilesCount)
+    TMaxInflightGetter(ui64 totalMaxInFlight, std::atomic<ui64>& currentFileCount)
         : TotalMaxInFlight(totalMaxInFlight)
-        , CurrentFilesCount(currentFilesCount) {
+        , CurrentFileCount(currentFileCount) {
     }
 
     ~TMaxInflightGetter() {
-        --CurrentFilesCount;
+        --CurrentFileCount;
     }
 
     ui64 GetCurrentMaxInflight() const {
-        return (TotalMaxInFlight - 1) / CurrentFilesCount + 1; // round up
+        return (TotalMaxInFlight - 1) / CurrentFileCount + 1; // round up
     }
 
 private:
     ui64 TotalMaxInFlight;
-    std::atomic<ui64>& CurrentFilesCount;
+    std::atomic<ui64>& CurrentFileCount;
 };
 
 class TCsvFileReader {
@@ -269,7 +269,7 @@ TImportFileClient::TImportFileClient(const TDriver& driver, const TClientCommand
 }
 
 TStatus TImportFileClient::Import(const TVector<TString>& filePaths, const TString& dbPath, const TImportFileSettings& settings) {
-    CurrentFilesCount = filePaths.size();
+    CurrentFileCount = filePaths.size();
     if (settings.Format_ == EDataFormat::Tsv && settings.Delimiter_ != "\t") {
         return MakeStatus(EStatus::BAD_REQUEST,
             TStringBuilder() << "Illegal delimiter for TSV format, only tab is allowed");
