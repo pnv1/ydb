@@ -34,8 +34,9 @@ public:
     void GetParams(TString&& data, TParamsBuilder& builder, const TParseMetadata& meta) const;
     void GetValue(TString&& data, TValueBuilder& builder, const TType& type, const TParseMetadata& meta) const;
     TType GetColumnsType() const;
+    TType GetBulkListType() const;
 
-private:
+public:
     TVector<TString> Header;
     TString HeaderRow;
     char Delimeter;
@@ -43,6 +44,10 @@ private:
     const std::map<TString, TType>* ParamTypes;
     const std::map<TString, TString>* ParamSources;
 };
+
+void GetValueStatic(TString&& data, TValueBuilder& builder, const TType& type, const TCsvParser::TParseMetadata& meta,
+    const TVector<TString>& header, const TString& headerRow, char delimeter, const std::optional<TString>& nullValue);
+TValue FieldToValueSimple(TTypeParser& parser, TStringBuf token, const std::optional<TString>& nullValue);
 
 }
 }

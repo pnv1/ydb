@@ -364,6 +364,10 @@ TTypeParser::~TTypeParser() = default;
 TTypeParser::TTypeParser(const TType& type)
     : Impl_(new TImpl(type)) {}
 
+void TTypeParser::Reset() {
+    Impl_->Reset();
+}
+
 TTypeParser::ETypeKind TTypeParser::GetKind() const {
     return Impl_->GetKind();
 }
@@ -645,15 +649,18 @@ public:
     }
 
     void BeginStruct() {
+        //Cerr << "TypeBuilder.BeginStruct() [[[[[[[[[[[[[[[[[[[[" << Endl;
         GetProto().mutable_struct_type();
         AddPosition(&GetProto());
     }
 
     void EndStruct() {
+        //Cerr << "TypeBuilder.EndStruct() ]]]]]]]]]]]]]]]]]]]]" << Endl;
         CloseContainer<ETypeKind::Struct>();
     }
 
     void AddMember(const TString& memberName) {
+        //Cerr << "TypeBuilder.AddMember(" << memberName << ")" << Endl;
         CheckPreviousKind(ETypeKind::Struct, "AddMember");
         PopPosition();
         auto member = GetProto().mutable_struct_type()->add_members();
@@ -667,6 +674,7 @@ public:
     }
 
     void SelectMember(size_t index) {
+        //Cerr << "TypeBuilder.SelectMember(" << index << ")" << Endl;
         CheckPreviousKind(ETypeKind::Struct, "SelectMember");
         PopPosition();
         auto member = GetProto().mutable_struct_type()->mutable_members(index);
@@ -760,10 +768,12 @@ public:
 private:
     void AddPosition(Ydb::Type* type) {
         Path_.emplace_back(TProtoPosition{type});
+        //Cerr << "TypeBuilder.AddPosition increased to " << Path_.size() << " with type \"" << type->DebugString() << "\"" << Endl;
     }
 
     void PopPosition() {
         Path_.pop_back();
+        //Cerr << "TypeBuilder.PopPosition reduced to " << Path_.size()<< Endl;
     }
 
     void FatalError(const TString& msg) const {
@@ -2355,13 +2365,17 @@ public:
     }
 
     void BeginStruct() {
-        SetBuildType(!CheckType(ETypeKind::Struct));
+        //Cerr << "TValueBuilder.BeginStruct() <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" << Endl;
+        bool checkResult = CheckType(ETypeKind::Struct);
+        //Cerr << "CheckType for kind struct: " << checkResult << Endl;
+        SetBuildType(!checkResult);
         if (!GetBuildType()) {
             auto& membersMap = GetMembersMap(GetType().mutable_struct_type());
             GetValue().mutable_items()->Reserve(membersMap.size());
             for (ui32 i = 0; i < membersMap.size(); ++i) {
                 GetValue().mutable_items()->Add();
             }
+            //Cerr << "Reserved " << membersMap.size() << " items and pushed membersMap" << Endl;
 
             PushStructsPath(&membersMap);
         }
@@ -2371,6 +2385,7 @@ public:
     }
 
     void AddMember(const TString& memberName) {
+        //Cerr << "ValueBuilder.AddMember(" << memberName << ")" << Endl;
         CheckContainerKind(ETypeKind::Struct);
 
         PopPath();
@@ -2390,6 +2405,7 @@ public:
                 FatalError(TStringBuilder() << "Struct member not found: " << memberName);
                 return;
             }
+            //Cerr << "Found membersMap and memberIndex " << *memberIndex << "(" << (ui64)memberIndex << ")" << Endl;
 
             TypeBuilder_.SelectMember(*memberIndex);
             PushPath(*GetValue().mutable_items(*memberIndex));
@@ -2405,6 +2421,7 @@ public:
             TypeBuilder_.SetType(memberValue.GetType());
         }
 
+        //Cerr << "ValueBuilder.AddMember. Setting proto value for " << memberName << " from TValue&" << Endl;
         SetProtoValue(memberValue);
     }
 
@@ -2415,10 +2432,12 @@ public:
             TypeBuilder_.SetType(std::move(memberValue.GetType()));
         }
 
+        //Cerr << "ValueBuilder.AddMember. Setting proto value for " << memberName << " from TValue&&" << Endl;
         SetProtoValue(std::move(memberValue));
     }
 
     void EndStruct() {
+        //Cerr << "TValueBuilder.EndStruct() >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>" << Endl;
         CheckContainerKind(ETypeKind::Struct);
 
         PopPath();
@@ -2622,10 +2641,12 @@ private:
     }
 
     bool GetBuildType() {
+        //Cerr << "GetBuildType returned " << PathTop().BuildType << Endl;
         return PathTop().BuildType;
     }
 
     void SetBuildType(bool value) {
+        //Cerr << "SetBuildType. OptLevel: " << PathTop().OptLevel << ", value " << PathTop().Value << " -> " << value << Endl;
         PathTop().BuildType = value;
     }
 
@@ -2738,10 +2759,12 @@ private:
 
     void PushPath(Ydb::Value& value) {
         Path_.emplace_back(value);
+        //Cerr << "TValueBuilder.PushPath increased to " << Path_.size() << " with value \"" << value.DebugString() << "\"" << Endl;
     }
 
     void PopPath() {
         Path_.pop_back();
+        //Cerr << "TValueBuilder.PopPath decreased to " << Path_.size() << Endl;
     }
 
     void PushStructsPath(const TMembersMap* membersMap) {
@@ -2763,9 +2786,11 @@ private:
             for (size_t i = 0; i < (size_t)structType->members_size(); ++i) {
                 membersMap.emplace(std::make_pair(structType->members(i).name(), i));
             }
+            //Cerr << "GetMembersMap for address " << (ui64)structType << " not found. Making one with " << (size_t)structType->members_size() << " members" << Endl;
             auto result = StructsMap_.emplace(std::make_pair(structType, std::move(membersMap)));
             it = result.first;
         }
+        //Cerr << "GetMembersMap for address " << (ui64)structType << " found" << Endl;
 
         return it->second;
     }

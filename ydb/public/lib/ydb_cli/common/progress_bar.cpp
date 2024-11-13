@@ -37,7 +37,7 @@ void TProgressBar::Render()
         return;
 
     size_t barLen = *barLenOpt;
-    TString output = "\r";
+    TString output = "\n";
     output += ToString(CurProgress * 100 / Capacity);
     output += "% |";
     TString outputEnd = "| [";

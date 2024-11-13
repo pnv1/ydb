@@ -114,6 +114,8 @@ public:
 
     ~TTypeParser();
 
+    void Reset();
+
     ETypeKind GetKind() const;
 
     EPrimitiveType GetPrimitive() const;

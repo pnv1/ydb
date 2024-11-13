@@ -431,6 +431,50 @@ void TCsvParser::GetValue(TString&& data, TValueBuilder& builder, const TType& t
     builder.EndStruct();
 }
 
+void GetValueStatic(TString&& data, TValueBuilder& builder, const TType& type, const TCsvParser::TParseMetadata& meta,
+        const TVector<TString>& header, const TString& headerRow, char delimeter, const std::optional<TString>& nullValue) {
+    NCsvFormat::CsvSplitter splitter(data, delimeter);
+    auto headerIt = header.cbegin();
+    std::map<TString, TStringBuf> fields;
+    do {
+        if (headerIt == header.cend()) {
+            throw FormatError(yexception() << "Header contains less fields than data. Header: \"" << headerRow << "\", data: \"" << data << "\"", meta);
+        }
+        TStringBuf token = Consume(splitter, meta, *headerIt);
+        fields[*headerIt] = token;
+        ++headerIt;
+    } while (splitter.Step());
+
+    if (headerIt != header.cend()) {
+        throw FormatError(yexception() << "Header contains more fields than data. Header: \"" << headerRow << "\", data: \"" << data << "\"", meta);
+    }
+
+    builder.BeginStruct();
+    TTypeParser parser(type);
+    parser.OpenStruct();
+    while (parser.TryNextMember()) {
+        TString name = parser.GetMemberName();
+        if (name == "__ydb_skip_column_name") {
+            continue;
+        }
+        auto fieldIt = fields.find(name);
+        if (fieldIt == fields.end()) {
+            throw FormatError(yexception() << "No member \"" << name << "\" in csv string for YDB struct type", meta);
+        }
+        builder.AddMember(name, FieldToValue(parser, fieldIt->second, nullValue, meta, name));
+    }
+
+    parser.CloseStruct();
+    builder.EndStruct();
+}
+
+TValue FieldToValueSimple(TTypeParser& parser,
+                    TStringBuf token,
+                    const std::optional<TString>& nullValue) {
+    TCsvToYdbConverter converter(parser, nullValue);
+    return converter.Convert(token);
+}
+
 TType TCsvParser::GetColumnsType() const {
     TTypeBuilder builder;
     builder.BeginStruct();
