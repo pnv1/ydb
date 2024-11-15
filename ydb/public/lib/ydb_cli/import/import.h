@@ -93,6 +93,15 @@ private:
     ui64 Size;
 };
 
+class TCsvBatch {
+public:
+    TCsvBatch(std::vector<TString>&& csvLines);
+    const std::vector<TString>& GetCsvLines() const;
+
+private:
+    std::vector<TString> CsvLines;
+};
+
 class TCsvFileReader {
 public:
 
@@ -138,11 +147,12 @@ private:
     double TotalCpuTimes = 0;
     ui64 TotalBatchBytes = 0;
     ui64 TotalBatches = 0;
-    THolder<std::counting_semaphore<>> WorkersSemaphore;
-    THolder<std::counting_semaphore<>> InflightSemaphore;
+    THolder<std::counting_semaphore<>> JobsInflight;
+    THolder<std::counting_semaphore<>> RequestsInflight;
     std::atomic<bool> Failed = 0;
     THolder<TStatus> ErrorStatus;
     std::mutex StatusLock;
+    THolder<IThreadPool> ProcessingPool;
 
 
     static constexpr ui32 VerboseModeReadSizeStep = 1 << 27; // 128 MB
@@ -152,16 +162,14 @@ private:
     TStatus UpsertCsvSimple(IInputStream& input,
                                      const TString& filePath,
                                      size_t maxInFlightRequests,
-                                     ui64 bytesPerRequest,
-                                     THolder<IThreadPool>& pool);
+                                     ui64 bytesPerRequest);
 
     TStatus UpsertCsv(IInputStream& input,
                       const TString& dbPath,
                       const TImportFileSettings& settings,
                       const TString& filePath,
                       std::optional<ui64> inputSizeHint,
-                      ProgressCallbackFunc & progressCallback,
-                      THolder<IThreadPool>& pool);
+                      ProgressCallbackFunc & progressCallback);
 
     TStatus UpsertCsvBlock(TFileChunk& chunk,
                             const TString& dbPath,
@@ -172,13 +180,11 @@ private:
                             const TString& headerRow,
                             char delimeter,
                             const std::optional<TString>& nullValue,
-                            bool removeLastDelimiter,
-                            THolder<IThreadPool>& pool);
+                            bool removeLastDelimiter);
 
     TStatus UpsertCsvTest(const TString& filePath,
                             const TString& dbPath,
-                            const TImportFileSettings& settings,
-                            THolder<IThreadPool>& pool);
+                            const TImportFileSettings& settings);
 
     TStatus UpsertCsvByBlocks(const TString& filePath,
                               const TString& dbPath,
