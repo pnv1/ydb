@@ -286,6 +286,9 @@ void TCommandImportFromCsv::Config(TConfig& config) {
     }
     config.Opts->AddLongOption("null-value", "Value that would be interpreted as NULL, no NULL value by default")
             .RequiredArgument("STRING").StoreResult(&NullValue);
+    config.Opts->AddLongOption("generate-create-table-request",
+            "Generate suggested CREATE TABLE request for a table that provided CSV data could be imported to")
+        .StoreTrue(&GenerateCreateTable);
     // TODO: quoting/quote_char
 }
 
@@ -311,7 +314,11 @@ int TCommandImportFromCsv::Run(TConfig& config) {
     }
 
     TImportFileClient client(CreateDriver(config), config);
-    ThrowOnError(client.Import(FilePaths, Path, settings));
+    if (GenerateCreateTable) {
+        ThrowOnError(client.GenerateCreateTable(FilePaths, Path, settings));
+    } else {
+        ThrowOnError(client.Import(FilePaths, Path, settings));
+    }
 
     return EXIT_SUCCESS;
 }

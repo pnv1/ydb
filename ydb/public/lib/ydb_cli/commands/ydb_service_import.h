@@ -83,6 +83,7 @@ protected:
     ui32 SkipRows = 0;
     bool Header = false;
     bool NewlineDelimited = true;
+    bool GenerateCreateTable = false;
 };
 
 class TCommandImportFromTsv : public TCommandImportFromCsv {

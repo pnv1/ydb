@@ -67,6 +67,12 @@ public:
     //   settings: input data format and operational settings
     TStatus Import(const TVector<TString>& fsPaths, const TString& dbPath, const TImportFileSettings& settings = {});
 
+    // Generate a CREATE TABLE request text.
+    //   fsPaths: vector of paths to input files
+    //   dbPath: full path to the database table, including the database path
+    //   settings: input data format and operational settings
+    TStatus GenerateCreateTableRequest(const TVector<TString>& fsPaths, const TString& dbPath, const TImportFileSettings& settings = {});
+
 private:
     std::shared_ptr<NTable::TTableClient> TableClient;
     std::shared_ptr<NScheme::TSchemeClient> SchemeClient;
@@ -101,6 +107,13 @@ private:
     TStatus UpsertParquet(const TString& filename, const TString& dbPath, const TImportFileSettings& settings,
                     ProgressCallbackFunc & progressCallback);
     TAsyncStatus UpsertParquetBuffer(const TString& dbPath, const TString& buffer, const TString& strSchema);
+
+    TStatus GenerateCreateTableFromCsv(IInputStream& input,
+                                       const TString& dbPath,
+                                       const TImportFileSettings& settings,
+                                       const TString& filePath,
+                                       std::optional<ui64> inputSizeHint,
+                                       ProgressCallbackFunc & progressCallback);
 
     TType GetTableType();
     std::map<TString, TType> GetColumnTypes();

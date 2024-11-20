@@ -35,6 +35,7 @@
 #include <contrib/libs/apache/arrow/cpp/src/parquet/file_reader.h>
 
 #include <stack>
+#include <shared_mutex>
 
 #if defined(_win32_)
 #include <windows.h>
@@ -383,6 +384,119 @@ TStatus TImportFileClient::Import(const TVector<TString>& filePaths, const TStri
 
             return MakeStatus(EStatus::BAD_REQUEST,
                         TStringBuilder() << "Unsupported format #" << (int) settings.Format_);
+        };
+
+        asyncResults.push_back(NThreading::Async(std::move(func), *pool));
+    }
+
+    NThreading::WaitAll(asyncResults).GetValueSync();
+    for (const auto& asyncResult : asyncResults) {
+        auto result = asyncResult.GetValueSync();
+        if (!result.IsSuccess()) {
+            return result;
+        }
+    }
+
+    auto finish = TInstant::Now();
+    auto duration = finish - start;
+    progressBar.SetProcess(100);
+    Cerr << "Elapsed: " << duration.SecondsFloat() << " sec\n";
+
+    return MakeStatus(EStatus::SUCCESS);
+}
+
+TStatus TImportFileClient::GenerateCreateTableRequest(const TVector<TString>& filePaths, const TString& dbPath, const TImportFileSettings& settings) {
+    FilesCount = filePaths.size();
+    if (settings.Format_ == EDataFormat::Tsv && settings.Delimiter_ != "\t") {
+        return MakeStatus(EStatus::BAD_REQUEST,
+            TStringBuilder() << "Illegal delimiter for TSV format, only tab is allowed");
+    }
+
+    UpsertSettings
+        .OperationTimeout(settings.OperationTimeout_)
+        .ClientTimeout(settings.ClientTimeout_);
+
+    bool isStdoutInteractive = IsStdoutInteractive();
+    size_t filePathsSize = filePaths.size();
+    std::mutex progressWriteLock;
+    std::atomic<ui64> globalProgress{0};
+
+    TProgressBar progressBar(100);
+
+    auto writeProgress = [&]() {
+        ui64 globalProgressValue = globalProgress.load();
+        std::lock_guard<std::mutex> lock(progressWriteLock);
+        progressBar.SetProcess(globalProgressValue / filePathsSize);
+    };
+
+    auto start = TInstant::Now();
+
+    auto pool = CreateThreadPool(filePathsSize);
+    TVector<NThreading::TFuture<TStatus>> asyncResults;
+
+    // If the single empty filename passed, read from stdin, else from the file
+
+    for (const auto& filePath : filePaths) {
+        auto func = [&, this] {
+            std::unique_ptr<TFileInput> fileInput;
+            std::optional<ui64> fileSizeHint;
+
+            if (!filePath.empty()) {
+                const TFsPath dataFile(filePath);
+
+                if (!dataFile.Exists()) {
+                    return MakeStatus(EStatus::BAD_REQUEST,
+                        TStringBuilder() << "File does not exist: " << filePath);
+                }
+
+                if (!dataFile.IsFile()) {
+                    return MakeStatus(EStatus::BAD_REQUEST,
+                        TStringBuilder() << "Not a file: " << filePath);
+                }
+
+                TFile file(filePath, OpenExisting | RdOnly | Seq);
+                i64 fileLength = file.GetLength();
+                if (fileLength && fileLength >= 0) {
+                    fileSizeHint = fileLength;
+                }
+
+                fileInput = std::make_unique<TFileInput>(file, settings.FileBufferSize_);
+            }
+
+            ProgressCallbackFunc progressCallback;
+
+            if (isStdoutInteractive) {
+                ui64 oldProgress = 0;
+                progressCallback = [&, oldProgress](ui64 current, ui64 total) mutable {
+                    ui64 progress = static_cast<ui64>((static_cast<double>(current) / total) * 100.0);
+                    ui64 progressDiff = progress - oldProgress;
+                    globalProgress.fetch_add(progressDiff);
+                    oldProgress = progress;
+                    writeProgress();
+                };
+            }
+
+            IInputStream& input = fileInput ? *fileInput : Cin;
+
+            switch (settings.Format_) {
+                case EDataFormat::Default:
+                case EDataFormat::Csv:
+                case EDataFormat::Tsv:
+                    if (settings.NewlineDelimited_) {
+                        return UpsertCsvByBlocks(filePath, dbPath, settings);
+                    } else {
+                        return UpsertCsv(input, dbPath, settings, filePath, fileSizeHint, progressCallback);
+                    }
+                case EDataFormat::Json:
+                case EDataFormat::JsonUnicode:
+                case EDataFormat::JsonBase64:
+                case EDataFormat::Parquet:
+                default: 
+                    break;
+            }
+
+            return MakeStatus(EStatus::BAD_REQUEST,
+                        TStringBuilder() << "Can't generate CREATE TABLE query text for file format #" << (int) settings.Format_);
         };
 
         asyncResults.push_back(NThreading::Async(std::move(func), *pool));
@@ -809,6 +923,220 @@ TAsyncStatus TImportFileClient::UpsertParquetBuffer(const TString& dbPath, const
             });
         };
     return TableClient->RetryOperation(upsert, RetrySettings);
+}
+
+namespace {
+
+struct TTypeDescriptor {
+    TType Type;
+    // A value that we can't parse to this type
+    // If another error value will met, this type will be excluded from available types.
+    // If no other error values will be met, this error value could be prompted as null-value
+    std::optional<TString> ErrorVale = std::nullopt;
+};
+
+class TPossibleTypes {
+public:
+    TPossibleTypes() {
+        AvailableTypes = {
+            {TTypeBuilder().Primitive(EPrimitiveType::Bool).Build()},
+            {TTypeBuilder().Primitive(EPrimitiveType::Int8).Build()},
+            {TTypeBuilder().Primitive(EPrimitiveType::Uint8).Build()},
+            {TTypeBuilder().Primitive(EPrimitiveType::Int16).Build()},
+            {TTypeBuilder().Primitive(EPrimitiveType::Uint16).Build()},
+            {TTypeBuilder().Primitive(EPrimitiveType::Int32).Build()},
+            {TTypeBuilder().Primitive(EPrimitiveType::Uint32).Build()},
+            {TTypeBuilder().Primitive(EPrimitiveType::Int64).Build()},
+            {TTypeBuilder().Primitive(EPrimitiveType::Uint64).Build()},
+            {TTypeBuilder().Primitive(EPrimitiveType::Float).Build()},
+            {TTypeBuilder().Primitive(EPrimitiveType::Date).Build()},
+            {TTypeBuilder().Primitive(EPrimitiveType::Datetime).Build()},
+            {TTypeBuilder().Primitive(EPrimitiveType::Timestamp).Build()},
+            {TTypeBuilder().Primitive(EPrimitiveType::Interval).Build()},
+            {TTypeBuilder().Primitive(EPrimitiveType::Date32).Build()},
+            {TTypeBuilder().Primitive(EPrimitiveType::Datetime64).Build()},
+            {TTypeBuilder().Primitive(EPrimitiveType::Timestamp64).Build()},
+            {TTypeBuilder().Primitive(EPrimitiveType::Interval64).Build()},
+            {TTypeBuilder().Primitive(EPrimitiveType::TzDate).Build()},
+            {TTypeBuilder().Primitive(EPrimitiveType::TzDatetime).Build()},
+            {TTypeBuilder().Primitive(EPrimitiveType::TzTimestamp).Build()},
+            {TTypeBuilder().Primitive(EPrimitiveType::String).Build()},
+            {TTypeBuilder().Primitive(EPrimitiveType::Utf8).Build()},
+            {TTypeBuilder().Primitive(EPrimitiveType::Yson).Build()},
+            {TTypeBuilder().Primitive(EPrimitiveType::Uuid).Build()},
+            {TTypeBuilder().Primitive(EPrimitiveType::Json).Build()},
+            {TTypeBuilder().Primitive(EPrimitiveType::JsonDocument).Build()},
+            {TTypeBuilder().Primitive(EPrimitiveType::DyNumber).Build()},
+            //TTypeBuilder().Decimal(const TDecimalType &decimalType)
+        };
+    }
+
+    TPossibleTypes(const std::vector<TTypeDescriptor>& availableTypes)
+    : AvailableTypes(availableTypes)
+    {
+    }
+
+    // Pass this copy to a worker to parse his chunk of data with it to merge it later back into this main chunk
+    TPossibleTypes GetCopy() {
+        std::shared_lock<std::shared_mutex>  ReadLock(Lock);
+        return TPossibleTypes(AvailableTypes);
+    }
+
+    // Merge this main chunk with another chunk that parsed a CSV batch and maybe dismissed some types
+    void MergeWith(const TPossibleTypes& newAvailableTypes) {
+        {
+            std::shared_lock<std::shared_mutex>  ReadLock(Lock);
+            std::vector<TTypeDescriptor> commonTypes = GetCommonTypes(newAvailableTypes.GetAvailableTypesConstRef());
+            if (commonTypes)
+        }
+        std::unique_lock<std::shared_mutex>  WriteLock(Lock);
+    }
+
+    const std::vector<TTypeDescriptor>& GetAvailableTypesConstRef() const {
+        return AvailableTypes;
+    }
+
+    std::vector<TTypeDescriptor>& GetAvailableMutableConstRef()  {
+        return AvailableTypes;
+    }
+private:
+    std::vector<TTypeDescriptor> GetCommonTypes(const std::vector<TTypeDescriptor>& newAvailableTypes) const {
+        std::vector<TTypeDescriptor> commonTypes;
+        commonTypes.reserve(AvailableTypes.size());
+        for (const auto& newType : newAvailableTypes) {
+            auto findIt = std::find_if(AvailableTypes.begin(), AvailableTypes.end(),
+                [&newType](const auto& availableType) {
+                    return newType.Type.ToString() == availableType.Type.ToString();
+                });
+            if (findIt != AvailableTypes.end()) {
+                // Type is still available in both chunks
+                if (findIt->ErrorVale.has_value()) {
+                    if (newType.ErrorVale.has_value()) {
+                        // Both chunks have error values
+                        if (findIt->ErrorVale.value() == newType.ErrorVale.value()) {
+                            // Chunks have the same error values, we can merge them
+                            commonTypes.push_back(newType);
+                        } else {
+                            // Chunks have different error values, dismiss this type completely
+                            continue;
+                        }
+                    } else {
+                        commonTypes.push_back(*findIt);
+                    }
+                } else {
+                    commonTypes.push_back(newType);
+                }
+            }
+        }
+        return commonTypes;
+    }
+    std::vector<TTypeDescriptor> AvailableTypes;
+
+    std::shared_mutex Lock;
+};
+} // namespace
+
+TStatus TImportFileClient::GenerateCreateTableFromCsv(IInputStream& input,
+                                     const TString& dbPath,
+                                     const TImportFileSettings& settings,
+                                     const TString& filePath,
+                                     std::optional<ui64> inputSizeHint,
+                                     ProgressCallbackFunc & progressCallback) {
+
+    TMaxInflightGetter inFlightGetter(settings.MaxInFlightRequests_, FilesCount);
+
+    TCountingInput countInput(&input);
+    NCsvFormat::TLinesSplitter splitter(countInput);
+
+    auto columnTypes = GetColumnTypes();
+    ValidateTValueUpsertTable();
+
+    TCsvParser parser;
+    bool removeLastDelimiter = false;
+    InitCsvParser(parser, removeLastDelimiter, splitter, settings, &columnTypes, DbTableInfo.get());
+
+    for (ui32 i = 0; i < settings.SkipRows_; ++i) {
+        splitter.ConsumeLine();
+    }
+
+    TType lineType = parser.GetColumnsType();
+
+    THolder<IThreadPool> pool = CreateThreadPool(settings.Threads_);
+
+    ui64 row = settings.SkipRows_ + settings.Header_ + 1;
+    ui64 batchRows = 0;
+    ui64 nextBorder = VerboseModeReadSize;
+    ui64 batchBytes = 0;
+    ui64 readBytes = 0;
+
+    TString line;
+    std::vector<TAsyncStatus> inFlightRequests;
+    std::vector<TString> buffer;
+
+    auto analyzeCsv = [&](ui64 row, std::vector<TString>&& buffer) {
+        TValueBuilder builder;
+        builder.BeginList();
+        for (auto&& line : buffer) {
+            builder.AddListItem();
+            parser.GetValue(std::move(line), builder, lineType, TCsvParser::TParseMetadata{row, filePath});
+            ++row;
+        }
+        builder.EndList();
+        return UpsertTValueBuffer(dbPath, builder).ExtractValueSync();
+    };
+
+    while (TString line = splitter.ConsumeLine()) {
+        ++batchRows;
+        if (line.empty()) {
+            continue;
+        }
+        readBytes += line.size();
+        batchBytes += line.size();
+
+        if (removeLastDelimiter) {
+            if (!line.EndsWith(settings.Delimiter_)) {
+                return MakeStatus(EStatus::BAD_REQUEST,
+                        "According to the header, lines should end with a delimiter");
+            }
+            line.erase(line.size() - settings.Delimiter_.size());
+        }
+
+        buffer.push_back(line);
+
+        if (readBytes >= nextBorder && RetrySettings.Verbose_) {
+            nextBorder += VerboseModeReadSize;
+            Cerr << "Processed " << 1.0 * readBytes / (1 << 20) << "Mb and " << row + batchRows << " records" << Endl;
+        }
+
+        if (batchBytes < settings.BytesPerRequest_) {
+            continue;
+        }
+
+        if (inputSizeHint && progressCallback) {
+            progressCallback(readBytes, *inputSizeHint);
+        }
+
+        auto workerFunc = [&analyzeCsv, row, buffer = std::move(buffer)]() mutable {
+            return analyzeCsv(row, std::move(buffer));
+        };
+        row += batchRows;
+        batchRows = 0;
+        batchBytes = 0;
+        buffer.clear();
+
+        inFlightRequests.push_back(NThreading::Async(workerFunc, *pool));
+
+        auto status = WaitForQueue(inFlightGetter.GetCurrentMaxInflight(), inFlightRequests);
+        if (!status.IsSuccess()) {
+            return status;
+        }
+    }
+
+    if (!buffer.empty() && countInput.Counter() > 0) {
+        upsertCsv(row, std::move(buffer));
+    }
+
+    return WaitForQueue(0, inFlightRequests);
 }
 
 TType TImportFileClient::GetTableType() {
