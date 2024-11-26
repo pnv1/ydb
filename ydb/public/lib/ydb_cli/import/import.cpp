@@ -341,7 +341,7 @@ private:
     TStatus UpsertCsvByBlocks(const TString& filePath,
                               const TString& dbPath);
     TAsyncStatus UpsertTValueBuffer(const TString& dbPath, TValueBuilder& builder);
-    TAsyncStatus UpsertTValueBuffer(const TString& dbPath, std::function<TValue()>&& buildFunc);
+    TAsyncStatus UpsertTValueBuffer(const TString& dbPath, std::function<NThreading::TFuture<TValue>()>&& buildFunc);
     TStatus UpsertJson(IInputStream &input, const TString &dbPath, std::optional<ui64> inputSizeHint,
                        ProgressCallbackFunc & progressCallback);
     TStatus UpsertParquet(const TString& filename, const TString& dbPath, ProgressCallbackFunc & progressCallback);
@@ -349,6 +349,7 @@ private:
     TType GetTableType();
     std::map<TString, TType> GetColumnTypes();
     void ValidateTValueUpsertTable();
+    void FailImport(const TStatus& status);
 
     std::shared_ptr<NTable::TTableClient> TableClient;
     std::shared_ptr<NScheme::TSchemeClient> SchemeClient;
@@ -575,24 +576,23 @@ TAsyncStatus TImportFileClient::TImpl::UpsertTValueBuffer(const TString& dbPath,
 }
 
 inline
-TAsyncStatus TImportFileClient::TImpl::UpsertTValueBuffer(const TString& dbPath, std::function<TValue()>&& buildFunc) {
+TAsyncStatus TImportFileClient::TImpl::UpsertTValueBuffer(const TString& dbPath, std::function<NThreading::TFuture<TValue>()>&& asyncBuildFunc) {
     // For the first attempt values are built before acquiring request inflight semaphore
-    std::optional<TValue> prebuiltValue = buildFunc();
-    auto retryFunc = [this, &dbPath, buildFunc = std::move(buildFunc), prebuiltValue = std::move(prebuiltValue)]
+    std::optional<NThreading::TFuture<TValue>> prebuiltValueFuture = asyncBuildFunc();
+    auto retryFunc = [this, &dbPath, asyncBuildFunc = std::move(asyncBuildFunc), prebuiltValueFuture]
             (NYdb::NTable::TTableClient& tableClient) mutable -> TAsyncStatus {
-        auto buildTValueAndSendRequest = [this, &buildFunc, &dbPath, &tableClient, &prebuiltValue]() {
-            // For every retry attempt after first request build value from strings again
-            // to prevent copying data in retryFunc in a happy way when there is only one request
-            TValue builtValue = prebuiltValue.has_value() ? std::move(prebuiltValue.value()) : buildFunc();
-            prebuiltValue = std::nullopt;
-            return tableClient.BulkUpsert(dbPath, std::move(builtValue), UpsertSettings)
-                .Apply([](const NYdb::NTable::TAsyncBulkUpsertResult& bulkUpsertResult) {
-                    NYdb::TStatus status = bulkUpsertResult.GetValueSync();
-                    return NThreading::MakeFuture(status);
-                });
-        };
-        // Running heavy building task on processing pool:
-        return NThreading::Async(std::move(buildTValueAndSendRequest), *ProcessingPool);
+        // For every retry attempt after first request build value from strings again
+        // to prevent copying data in retryFunc in a happy way when there is only one request
+        auto valueFuture = prebuiltValueFuture.has_value() ? std::move(prebuiltValueFuture.value()) : asyncBuildFunc();
+        // Waiting for ProcessingPool task to build TValue
+        TValue builtValue = valueFuture.ExtractValueSync();
+        // Setting prebuiltValue to nullopt to not use it on retries
+        prebuiltValueFuture = std::nullopt;
+        return tableClient.BulkUpsert(dbPath, std::move(builtValue), UpsertSettings)
+            .Apply([](const NYdb::NTable::TAsyncBulkUpsertResult& bulkUpsertResult) {
+                NYdb::TStatus status = bulkUpsertResult.GetValueSync();
+                return NThreading::MakeFuture(status);
+            });
     };
     if (!RequestsInflight->try_acquire()) {
         if (Settings.Verbose_ && Settings.NewlineDelimited_) {
@@ -609,9 +609,7 @@ TAsyncStatus TImportFileClient::TImpl::UpsertTValueBuffer(const TString& dbPath,
         .Apply([this](const TAsyncStatus& asyncStatus) {
             NYdb::TStatus status = asyncStatus.GetValueSync();
             if (!status.IsSuccess()) {
-                if (!Failed.exchange(true)) {
-                    ErrorStatus = MakeHolder<TStatus>(status);
-                }
+                FailImport(status);
             }
             RequestsInflight->release();
             return asyncStatus;
@@ -634,6 +632,10 @@ TStatus TImportFileClient::TImpl::UpsertCsv(IInputStream& input,
     TCsvParser parser;
     bool removeLastDelimiter = false;
     InitCsvParser(parser, removeLastDelimiter, splitter, Settings, &columnTypes, DbTableInfo.get());
+    THolder<IThreadPool> readingPool = CreateThreadPool(Max((size_t)1, Settings.Threads_ / CurrentFileCount), 0,
+    IThreadPool::TParams()
+        .SetThreadNamePrefix("CsvReading")
+        .SetBlocking(true));
 
     for (ui32 i = 0; i < Settings.SkipRows_; ++i) {
         splitter.ConsumeLine();
@@ -650,22 +652,30 @@ TStatus TImportFileClient::TImpl::UpsertCsv(IInputStream& input,
     std::vector<TString> buffer;
 
     auto upsertCsvFunc = [&, jobInflightManager](std::vector<TString>&& buffer, ui64 row) {
-            auto buildFunc = [jobInflightManager, &parser, buffer = std::move(buffer), &filePath, row, this] () mutable {
+        auto asyncBuildFunc = [jobInflightManager, &parser, buffer = std::move(buffer), &filePath, row, this] () mutable {
+            auto promise = NThreading::NewPromise<TValue>();
+            auto buildFunc = [&parser, buffer = std::move(buffer), &filePath, promise, row, jobInflightManager, this] () mutable {
                 try {
-                    return parser.BuildList(buffer, filePath, row);
+                    promise.SetValue(parser.BuildList(buffer, filePath, row));
                 } catch (const std::exception& e) {
-                    if (!Failed.exchange(true)) {
-                        ErrorStatus = MakeHolder<TStatus>(MakeStatus(EStatus::INTERNAL_ERROR, e.what()));
-                    }
+                    FailImport(MakeStatus(EStatus::INTERNAL_ERROR, e.what()));
                     jobInflightManager->ReleaseJob();
                     throw;
                 }
             };
-            UpsertTValueBuffer(dbPath, std::move(buildFunc))
-                .Apply([jobInflightManager](const TAsyncStatus& asyncStatus) {
-                    jobInflightManager->ReleaseJob();
-                    return asyncStatus;
-                });
+
+            if (!ProcessingPool->AddFunc(buildFunc)) {
+                TString errorMessage = "Couldn't add a worker to processing pool";
+                FailImport(MakeStatus(EStatus::INTERNAL_ERROR, errorMessage));
+                promise.SetException(errorMessage);
+            }
+            return promise.GetFuture();
+        };
+        UpsertTValueBuffer(dbPath, std::move(asyncBuildFunc))
+            .Apply([jobInflightManager](const TAsyncStatus& asyncStatus) {
+                jobInflightManager->ReleaseJob();
+                return asyncStatus;
+            });
     };
 
     while (TString line = splitter.ConsumeLine()) {
@@ -696,22 +706,20 @@ TStatus TImportFileClient::TImpl::UpsertCsv(IInputStream& input,
         }
 
         if (inputSizeHint && progressCallback) {
-            progressCallback(readBytes, *inputSizeHint);
+            //progressCallback(readBytes, *inputSizeHint);
         }
 
         auto workerFunc = [&upsertCsvFunc, row, buffer = std::move(buffer)]() mutable {
             upsertCsvFunc(std::move(buffer), row);
         };
+        jobInflightManager->AcquireJob();
+        if (!readingPool->AddFunc(workerFunc)) {
+            return MakeStatus(EStatus::INTERNAL_ERROR, "Couldn't add worker func");
+        }
         row += batchRows;
         batchRows = 0;
         batchBytes = 0;
         buffer.clear();
-
-        jobInflightManager->AcquireJob();
-
-        if (!ProcessingPool->AddFunc(workerFunc)) {
-            return MakeStatus(EStatus::INTERNAL_ERROR, "Couldn't add worker func");
-        }
 
         if (Failed) {
             break;
@@ -731,7 +739,7 @@ TStatus TImportFileClient::TImpl::UpsertCsv(IInputStream& input,
     if (Settings.Verbose_) {
         std::stringstream str;
         double fileProcessingTimeSeconds = (TInstant::Now() - fileStartTime).SecondsFloat();
-        str << std::endl << "File " << filePath << " of " << PrettifyBytes(readBytes)
+        str << std::endl << "File " << filePath << " after reading " << PrettifyBytes(readBytes)
             << (Failed ? " failed in " : " processed in ") << std::setprecision(3) << fileProcessingTimeSeconds << " sec";
         if (fileProcessingTimeSeconds > 0) {
             str << ", " << PrettifyBytes((double)readBytes / fileProcessingTimeSeconds)  << "/s" << std::endl;
@@ -775,23 +783,36 @@ TStatus TImportFileClient::TImpl::UpsertCsvByBlocks(const TString& filePath,
             size_t maxJobInflight = maxJobInflightTotal / threadCount + (threadId < maxJobInflightTotal % threadCount ? 1 : 0);
             // Jobs starts on starting building TValue and sends request
             // Job ends on receiving final request (after all retries)
-            std::counting_semaphore<> jobsInflight(maxJobInflight);
-            auto upsertCsvFunc = [&](std::vector<TString>&& buffer) {
-                auto buildFunc = [&jobsInflight, &parser, buffer = std::move(buffer), &filePath, this]() mutable {
-                    try {
-                        return parser.BuildList(buffer, filePath);
-                    } catch (const std::exception& e) {
-                        if (!Failed.exchange(true)) {
-                            ErrorStatus = MakeHolder<TStatus>(MakeStatus(EStatus::INTERNAL_ERROR, e.what()));
+            auto inflightJobsCounter = std::make_shared<std::atomic<int>>(0);
+            auto jobsInflight = std::make_shared<std::counting_semaphore<>>(maxJobInflight);
+            auto upsertCsvFunc = [&, jobsInflight](std::vector<TString>&& buffer) {
+                auto asyncBuildFunc = [jobsInflight, &parser, buffer = std::move(buffer), &filePath, this] () mutable {
+                    auto promise = NThreading::NewPromise<TValue>();
+                    auto buildFunc = [jobsInflight, &parser, &buffer, &filePath, promise, this] () mutable {
+                        try {
+                            promise.SetValue(parser.BuildList(buffer, filePath));
+                        } catch (const std::exception& e) {
+                            FailImport(MakeStatus(EStatus::INTERNAL_ERROR, e.what()));
+                            jobsInflight->release();
+                            throw;
                         }
-                        jobsInflight.release();
-                        throw;
+                    };
+                    if (!ProcessingPool->AddFunc(buildFunc)) {
+                        TString errorMessage = "Couldn't add a worker to processing pool";
+                        FailImport(MakeStatus(EStatus::INTERNAL_ERROR, errorMessage));
+                        promise.SetException(errorMessage);
                     }
+                    return promise.GetFuture();
                 };
-                jobsInflight.acquire();
-                UpsertTValueBuffer(dbPath, std::move(buildFunc))
-                    .Apply([&jobsInflight](const TAsyncStatus& asyncStatus) {
-                        jobsInflight.release();
+                jobsInflight->acquire();
+                ++(*inflightJobsCounter);
+                Cerr << (TStringBuilder() << "<" << inflightJobsCounter->load() << ">");
+
+                UpsertTValueBuffer(dbPath, std::move(asyncBuildFunc))
+                    .Apply([jobsInflight, inflightJobsCounter](const TAsyncStatus& asyncStatus) {
+                        jobsInflight->release();
+                        --(*inflightJobsCounter);
+                        Cerr << (TStringBuilder() << "</" << inflightJobsCounter->load() << ">");
                         return asyncStatus;
                     });
             };
@@ -811,10 +832,8 @@ TStatus TImportFileClient::TImpl::UpsertCsvByBlocks(const TString& filePath,
                 batchBytes += line.size();
                 if (removeLastDelimiter) {
                     if (!line.EndsWith(Settings.Delimiter_)) {
-                        if (!Failed.exchange(true)) {
-                            ErrorStatus = MakeHolder<TStatus>(MakeStatus(EStatus::BAD_REQUEST,
+                        FailImport(MakeStatus(EStatus::BAD_REQUEST,
                                 "According to the header, lines should end with a delimiter"));
-                        }
                         break;
                     }
                     line.erase(line.size() - Settings.Delimiter_.size());
@@ -843,7 +862,7 @@ TStatus TImportFileClient::TImpl::UpsertCsvByBlocks(const TString& filePath,
 
             // Wait for all jobs for current thread to finish
             for (size_t i = 0; i < maxJobInflight; ++i) {
-                jobsInflight.acquire();
+                jobsInflight->acquire();
             }
 
             TotalBytesRead += readBytes;
@@ -863,7 +882,7 @@ TStatus TImportFileClient::TImpl::UpsertCsvByBlocks(const TString& filePath,
         };
 
         if (!readingPool->AddFunc(workerFunc)) {
-            return MakeStatus(EStatus::INTERNAL_ERROR, "Couldn't add worker func");
+            return MakeStatus(EStatus::INTERNAL_ERROR, "Couldn't add a worker to processing pool");
         }
     }
     NThreading::WaitAll(threadResults).Wait();
@@ -1102,6 +1121,12 @@ void TImportFileClient::TImpl::ValidateTValueUpsertTable() {
     Y_ENSURE_BT(DbTableInfo);
     if (DbTableInfo->GetStoreType() == NTable::EStoreType::Column && hasPgType) {
         throw TMisuseException() << "Import into column table with Pg type columns in not supported";
+    }
+}
+
+void TImportFileClient::TImpl::FailImport(const TStatus& status) {
+    if (!Failed.exchange(true)) {
+        ErrorStatus = MakeHolder<TStatus>(status);
     }
 }
 
