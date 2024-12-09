@@ -860,7 +860,7 @@ TStatus TImportFileClient::TImpl::UpsertCsv(IInputStream& input,
         }
 
         if (inputSizeHint && progressCallback) {
-            //progressCallback(readBytes, *inputSizeHint);
+            progressCallback(readBytes, *inputSizeHint);
         }
 
         auto workerFunc = [&upsertCsvFunc, row, buffer = std::move(buffer)]() mutable {
@@ -1104,8 +1104,6 @@ TStatus TImportFileClient::TImpl::GenerateCreateTableFromCsv(IInputStream& input
         columnTypes.MergeWith(typesCopy);
         jobInflightManager->ReleaseJob();
     };
-
-
 
     while (TString line = splitter.ConsumeLine()) {
         ++row;
