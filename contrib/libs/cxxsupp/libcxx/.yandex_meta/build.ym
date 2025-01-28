@@ -91,8 +91,6 @@ VERSION({{self.date().strip()}})
 ORIGINAL_SOURCE(https://github.com/llvm/llvm-project/archive/{{self.version().strip()}}.tar.gz)
 
 SUBSCRIBER(
-    halyavin
-    somov
     g:cpp-committee
     g:cpp-contrib
 )
@@ -150,19 +148,13 @@ ELSEIF (OS_EMSCRIPTEN)
         -Wl,-Bdynamic
     )
     CXXFLAGS(
-        -Wno-unknown-pragmas
         -nostdinc++
     )
 ELSE()
     DEFAULT(CXX_RT "glibcxx_static")
     CXXFLAGS(
-        -Wno-unknown-pragmas
         -nostdinc++
     )
-ENDIF()
-
-IF (OS_LINUX)
-    EXTRALIBS(-lpthread)
 ENDIF()
 
 IF (CLANG)

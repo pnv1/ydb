@@ -7,6 +7,7 @@ import tempfile
 import stat
 import sys
 import argparse
+import re
 
 from library.python import resource
 
@@ -38,6 +39,7 @@ class StabilityCluster:
             self._unpack_resource('simple_queue'),
             self._unpack_resource('olap_workload'),
             self._unpack_resource('statistics_workload'),
+            self._unpack_resource('ydb_cli'),
         )
 
         self.kikimr_cluster = ExternalKiKiMRCluster(
@@ -58,6 +60,91 @@ class StabilityCluster:
         st = os.stat(path_to_unpack)
         os.chmod(path_to_unpack, st.st_mode | stat.S_IEXEC)
         return path_to_unpack
+
+    def clean_trace(self, traces):
+        cleaned_lines = []
+        for line in traces.split('\n'):
+            line = re.sub(r' @ 0x[a-fA-F0-9]+', '', line)
+            # Убираем все до текста ошибки или указателя на строку кода
+            match_verify = re.search(r'VERIFY|FAIL|signal 11|signal 6|signal 15|uncaught exception', line)
+            match_code_file_line = re.search(r'\s+(\S+\.cpp:\d+).*', line)
+
+            if match_verify:
+                cleaned_lines.append(match_verify.group())
+            elif match_code_file_line:
+                cleaned_lines.append(match_code_file_line.group())
+
+        return "\n".join(cleaned_lines)
+
+    def is_sublist(self, shorter, longer):
+        """ Check if 'shorter' is a sublist in 'longer' from the start """
+        return longer[:len(shorter)] == shorter
+
+    def find_unique_traces_with_counts(self, all_traces):
+        clean_traces_dict = {}
+        unique_traces = {}
+
+        for trace in all_traces:
+            clean_trace = self.clean_trace(trace)
+            if clean_traces_dict.get(clean_trace):
+                clean_traces_dict[clean_trace].append(trace)
+            else:
+                clean_traces_dict[clean_trace] = [trace]
+
+        clean_traces_dict = dict(sorted(clean_traces_dict.items(), key=lambda item: len(item[0])))
+        for trace in clean_traces_dict:
+            for unique in unique_traces:
+                if self.is_sublist(trace, unique):
+                    unique_traces[unique] = unique_traces[unique] + clean_traces_dict[trace]
+                    break
+                elif self.is_sublist(unique, trace):
+                    unique_traces[trace] = unique_traces[unique] + clean_traces_dict[trace]
+                    del unique_traces[unique]
+                    break
+            if not unique_traces.get(trace):
+                unique_traces[trace] = clean_traces_dict[trace]
+
+        return dict(sorted(unique_traces.items(), key=lambda item: len(item[1]), reverse=True))
+
+    def process_lines(self, text):
+        traces = []
+        trace = ""
+        for host in text:
+            host = host.split('\n')
+            for line in host:
+                if line in ("--", "\n", ""):
+                    traces.append(trace)
+                    trace = ""
+                else:
+                    trace = trace + line + '\n'
+        return traces
+
+    def get_all_errors(self):
+        logging.getLogger().setLevel(logging.WARNING)
+        all_results = []
+        for node in self.kikimr_cluster.nodes.values():
+            result = node.ssh_command("""
+                    ls -ltr /Berkanavt/kikimr*/logs/kikimr* |
+                    awk '{print $NF}' |
+                    while read file; do
+                    case "$file" in
+                        *.txt) cat "$file" ;;
+                        *.gz) zcat "$file" ;;
+                        *) cat "$file" ;;
+                    esac
+                    done |
+                    grep -E 'VERIFY|FAIL|signal 11|signal 6|signal 15|uncaught exception' -A 20
+                                    """, raise_on_error=False)
+            if result:
+                all_results.append(result.decode('utf-8'))
+        all_results = self.process_lines(all_results)
+        return all_results
+
+    def get_errors(self):
+        errors = self.get_all_errors()
+        unique_traces = self.find_unique_traces_with_counts(errors)
+        for trace in unique_traces:
+            print(f"Trace (Occurrences: {len(unique_traces[trace])}):\n{trace}\n{'-'*60}")
 
     def perform_checks(self):
 
@@ -107,7 +194,7 @@ class StabilityCluster:
             if mode in ['all', 'dumps']:
                 node.ssh_command('sudo rm -rf /coredumps/*', raise_on_error=False)
             if mode in ['all', 'logs']:
-                node.ssh_command('sudo rm -rf /Berkanavt/kikimr_31003/logs/*', raise_on_error=False)
+                node.ssh_command('sudo rm -rf /Berkanavt/kikimr_31*/logs/*', raise_on_error=False)
                 node.ssh_command('sudo rm -rf /Berkanavt/kikimr/logs/*', raise_on_error=False)
                 node.ssh_command('sudo rm -rf /Berkanavt/nemesis/log/*', raise_on_error=False)
             if mode == 'all':
@@ -193,6 +280,7 @@ def parse_args():
         type=str,
         nargs="+",
         choices=[
+            "get_errors",
             "cleanup",
             "cleanup_logs",
             "cleanup_dumps",
@@ -204,6 +292,7 @@ def parse_args():
             "start_workload_simple_queue_row",
             "start_workload_simple_queue_column",
             "start_workload_olap_workload",
+            "start_workload_log",
             "stop_workloads",
             "perform_checks",
         ],
@@ -222,6 +311,8 @@ def main():
     )
 
     for action in args.actions:
+        if action == "get_errors":
+            stability_cluster.get_errors()
         if action == "deploy_ydb":
             stability_cluster.deploy_ydb()
         if action == "cleanup":
@@ -250,6 +341,49 @@ def main():
             for node_id, node in enumerate(stability_cluster.kikimr_cluster.nodes.values()):
                 node.ssh_command(
                     'screen -d -m bash -c "while true; do /Berkanavt/nemesis/bin/simple_queue --database /Root/db1 --mode row; done"',
+                    raise_on_error=True
+                )
+        if action == "start_workload_log":
+            for node_id, node in enumerate(stability_cluster.kikimr_cluster.nodes.values()):
+                if node_id == 1:
+                    node.ssh_command([
+                        '/Berkanavt/nemesis/bin/ydb_cli',
+                        '--endpoint', f'grpc://localhost:{node.grpc_port}',
+                        '--database', '/Root/db1',
+                        'workload', 'log', 'clean'
+                        ],
+                        raise_on_error=True
+                    )
+                    node.ssh_command([
+                        '/Berkanavt/nemesis/bin/ydb_cli',
+                        '--endpoint', f'grpc://localhost:{node.grpc_port}',
+                        '--database', '/Root/db1',
+                        'workload', 'log', 'init',
+                        '--len', '1000',
+                        '--int-cols', '20',
+                        '--key-cols', '20',
+                        '--min-partitions', '100',
+                        '--partition-size', '10',
+                        '--auto-partition', '0',
+                        '--ttl', '3600'
+                        ],
+                        raise_on_error=True
+                    )
+            for node_id, node in enumerate(stability_cluster.kikimr_cluster.nodes.values()):
+                node.ssh_command([
+                    'screen -s workload_log -d -m bash -c "while true; do',
+                    '/Berkanavt/nemesis/bin/ydb_cli',
+                    '--endpoint', f'grpc://localhost:{node.grpc_port}',
+                    '--database', '/Root/db1',
+                    'workload', 'log', 'run', 'bulk_upsert',
+                    '--len', '1000',
+                    '--int-cols', '20',
+                    '--key-cols', '20',
+                    '--threads', '2000',
+                    '--timestamp_deviation', '180',
+                    '--seconds', '86400',
+                    '; done"'
+                    ],
                     raise_on_error=True
                 )
         if action == "start_workload_simple_queue_column":
