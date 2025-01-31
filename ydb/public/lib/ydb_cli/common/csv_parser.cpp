@@ -165,7 +165,7 @@ public:
         }
         case EPrimitiveType::Interval64:
             Builder.Interval64(GetArithmetic<i64>(token));
-            break;            
+            break;
         case EPrimitiveType::TzDate:
             Builder.TzDate(token);
             break;
@@ -479,6 +479,10 @@ TCsvParser::TCsvParser(TString&& headerRow, const char delimeter, const std::opt
 {
     NCsvFormat::CsvSplitter splitter(HeaderRow, Delimeter);
     Header = static_cast<TVector<TString>>(splitter);
+    int id = 0;
+    for (const auto& columnName : Header) {
+        Cerr << "Column" << ++id << ": " << columnName << Endl;
+    }
 }
 
 TCsvParser::TCsvParser(TVector<TString>&& header, const char delimeter, const std::optional<TString>& nullValue,
@@ -564,7 +568,7 @@ TValue TCsvParser::BuildList(std::vector<TString>& lines, const TString& filenam
     for (const TType* type : ResultLineTypesSorted) {
         columnTypeParsers.push_back(std::make_unique<TTypeParser>(*type));
     }
-    
+
     Ydb::Value listValue;
     auto* listItems = listValue.mutable_items();
     listItems->Reserve(lines.size());
@@ -600,16 +604,58 @@ void TCsvParser::BuildLineType() {
     ResultColumnCount = 0;
     TTypeBuilder builder;
     builder.BeginStruct();
+    Cerr << "Columns in DestinationTypes:" << Endl;
+    for ( const auto& [name, _] : *DestinationTypes) {
+        Cerr << '\'' << name << "\'(" << name.length() << "symbols)" << ' ';
+        if (name == "DIY") {
+            Cerr << "[actually DIY] ";
+        }
+    }
+    Cerr << Endl;
+    Cerr << "Columns count: " << DestinationTypes->size() << Endl;
+    std::vector<std::string> notFounds;
     for (const auto& colName : Header) {
+        Cerr << "Column " << colName << "\'(" << colName.length() << "symbols)" << " in header. ";
+        if (colName == "DIY") {
+            Cerr << "[actually DIY] ";
+        } else {
+            Cerr << "[";
+            for (char sym : colName) {
+                std::cerr << std::hex << (int)sym << " ";
+            }
+            Cerr << "]";
+        }
         auto findIt = DestinationTypes->find(colName);
         if (findIt != DestinationTypes->end()) {
+            Cerr << "Found in table.";
             builder.AddMember(colName, findIt->second);
             ResultLineTypesSorted.push_back(&findIt->second);
             SkipBitMap.push_back(false);
             ++ResultColumnCount;
         } else {
+            Cerr << "Not found in table.";
+            auto secondFindIt = DestinationTypes->find(colName);
+            if (secondFindIt == DestinationTypes->end()) {
+                Cerr << " Not found twice.";
+                notFounds.push_back(colName);
+            }
             SkipBitMap.push_back(true);
         }
+        Cerr << Endl;
+    }
+    for (const auto& colName : notFounds) {
+        Cerr << "Previously not found column " << colName << " ";
+        auto findIt = DestinationTypes->find(colName);
+        if (findIt != DestinationTypes->end()) {
+            Cerr << "Found in table.";
+        } else {
+            Cerr << "Not found in table.";
+            auto secondFindIt = DestinationTypes->find(colName);
+            if (secondFindIt == DestinationTypes->end()) {
+                Cerr << " Not found twice.";
+            }
+        }
+        Cerr << Endl;
     }
     builder.EndStruct();
     ResultLineType = builder.Build();

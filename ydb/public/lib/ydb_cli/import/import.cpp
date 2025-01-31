@@ -114,6 +114,12 @@ void InitCsvParser(TCsvParser& parser,
             removeLastDelimiter = true;
             newHeaderRow.erase(newHeaderRow.size() - settings.Delimiter_.size());
         }
+        Cerr << "Columns in table:" << Endl;
+        for ( const auto& [name, _] : *columnTypes) {
+            Cerr << '\'' << name << "\'(" << name.length() << "symbols)" << ' ';
+        }
+        Cerr << Endl;
+        Cerr << "Columns count: " << columnTypes->size() << Endl;
         parser = TCsvParser(std::move(newHeaderRow), settings.Delimiter_[0], settings.NullValue_, columnTypes);
     } else {
         TVector<TString> columns;
@@ -479,6 +485,90 @@ struct TImportBatchStatus {
     bool Completed; // Sets upon receiving confirmation from server
 };
 
+class TUtf8InputStream : public IInputStream {
+public:
+    TUtf8InputStream(IInputStream& input)
+    : OriginalInput(input)
+    {}
+
+    size_t DoRead(void* buf, size_t len) override {
+        return OriginalInput.Read(buf, len);
+    }
+
+    size_t DoReadTo(TString& st, char to) override {
+        if (!FirstRead) {
+            return IInputStream::DoReadTo(st, to);
+        }
+        FirstRead = false;
+        char ch;
+        if (!Read(&ch, 1)) {
+            return 0;
+        }
+        st.clear();
+        bool bom = true;
+        size_t result = 1;
+        // Skipping BOM mark EF BB BF
+        if (ch != '\xEF') {
+            bom = false;
+        } else {
+            Cerr << "EF" << Endl;
+        }
+        if (ch == to) {
+            return result;
+        }
+        st += ch;
+
+        if (!Read(&ch, 1)) {
+            return result;
+        }
+        ++result;
+        if (ch != '\xBB') {
+            bom = false;
+        } else {
+            Cerr << "BB" << Endl;
+        }
+        if (ch == to) {
+            return result;
+        }
+        st += ch;
+
+        if (!Read(&ch, 1)) {
+            return result;
+        }
+        ++result;
+        if (ch != '\xBF') {
+            bom = false;
+        } else {
+            Cerr << "BF" << Endl;
+        }
+        if (ch == to) {
+            return result;
+        }
+        st += ch;
+
+        if (bom) {
+            result = 0;
+            st.clear();
+        }
+
+        while(Read(&ch, 1)) {
+            ++result;
+
+            if (ch == to) {
+                break;
+            }
+
+            st += ch;
+        };
+
+        return result;
+    }
+
+private:
+    IInputStream& OriginalInput;
+    bool FirstRead = true;
+};
+
 } // namespace
 
 class TImportFileClient::TImpl {
@@ -685,7 +775,7 @@ TStatus TImportFileClient::TImpl::Import(const TVector<TString>& filePaths, cons
                 };
             }
 
-            IInputStream& input = fileInput ? *fileInput : Cin;
+            TUtf8InputStream input(fileInput ? *fileInput : Cin);
 
             try {
                 switch (Settings.Format_) {
