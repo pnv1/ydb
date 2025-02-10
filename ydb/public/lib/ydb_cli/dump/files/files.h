@@ -12,6 +12,8 @@ const TFileInfo& Permissions();
 const TFileInfo& Changefeed();
 const TFileInfo& TopicDescription();
 const TFileInfo& CreateTopic();
+const TFileInfo& CreateCoordinationNode();
+const TFileInfo& CreateRateLimiter();
 const TFileInfo& IncompleteData();
 const TFileInfo& Incomplete();
 const TFileInfo& Empty();
