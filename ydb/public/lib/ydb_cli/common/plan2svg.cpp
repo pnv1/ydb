@@ -850,6 +850,9 @@ void TPlan::LoadStage(std::shared_ptr<TStage> stage, const NJson::TJsonValue& no
             stage->Tasks = tasksNode->GetIntegerSafe();
             Tasks += stage->Tasks;
         }
+        if (auto* finishedTasksNode = stage->StatsNode->GetValueByPath("FinishedTasks")) {
+            stage->FinishedTasks = finishedTasksNode->GetIntegerSafe();
+        }
 
         if (auto* physicalStageIdNode = stage->StatsNode->GetValueByPath("PhysicalStageId")) {
             stage->PhysicalStageId = physicalStageIdNode->GetIntegerSafe();
@@ -1011,6 +1014,7 @@ void TPlan::LoadStage(std::shared_ptr<TStage> stage, const NJson::TJsonValue& no
                         ythrow yexception() << "Plan stage already has Ingress [" << stage->IngressName << "]";
                     }
                     stage->IngressName = subNodeType;
+                    stage->BuiltInIngress = true;
 
                     const NJson::TJsonValue* ingressRowsNode = nullptr;
                     if (stage->StatsNode) {
@@ -1185,7 +1189,7 @@ void TPlan::MarkStageIndent(ui32 indent, ui32& offsetY, std::shared_ptr<TStage> 
 
     stage->OffsetY = offsetY;
     ui32 height = std::max<ui32>(
-        (stage->Connections.size() + 3) * (INTERNAL_HEIGHT + INTERNAL_GAP_Y) + INTERNAL_GAP_Y,
+        (3 /* Output, MEM, CPU*/ + stage->Connections.size() + stage->BuiltInIngress) * (INTERNAL_HEIGHT + INTERNAL_GAP_Y) + INTERNAL_GAP_Y,
         stage->Operators.size() * (INTERNAL_TEXT_HEIGHT + INTERNAL_GAP_Y) * 2 - INTERNAL_GAP_Y + (INTERNAL_HEIGHT - INTERNAL_TEXT_HEIGHT));
 
     stage->Height = height;
@@ -1553,11 +1557,20 @@ void TPlan::PrintSvg(ui64 maxTime, ui32& offsetY, TStringBuilder& background, TS
             << "' y='" << s->OffsetY + s->Height / 2 + offsetY + INTERNAL_TEXT_HEIGHT / 2 << "'>" << s->Tasks << "</text>" << Endl
             << "</g>" << Endl;
         } else {
-        canvas
-            << "<g><title>Stage " << s->PhysicalStageId << ", tasks: " << taskCount << "</title>" << Endl
+            canvas
+            << "<g><title>Stage " << s->PhysicalStageId << ", tasks: " << s->Tasks << ", finished: " << s->FinishedTasks << "</title>" << Endl;
+            if (s->FinishedTasks && s->FinishedTasks <= s->Tasks) {
+                auto finishedHeight = s->Height * s->FinishedTasks / s->Tasks;
+                auto xx = Config.TaskLeft + Config.TaskWidth - Config.TaskWidth / 8;
+                canvas
+                << "<line x1='" << xx << "' y1='" << s->OffsetY + offsetY + s->Height - finishedHeight
+                << "' x2='" << xx << "' y2='" << s->OffsetY + offsetY + s->Height
+                << "' stroke-width='" << Config.TaskWidth / 4 << "' stroke='" << Config.Palette.StageClone << "' stroke-dasharray='1,1' />" << Endl;
+            }
+            canvas
             << "  <text text-anchor='end' font-family='Verdana' font-size='" << INTERNAL_TEXT_HEIGHT << "px' fill='" << Config.Palette.StageText
             << "' x='" << Config.TaskLeft + Config.TaskWidth - 2
-            << "' y='" << s->OffsetY + s->Height / 2 + offsetY + INTERNAL_TEXT_HEIGHT / 2 << "'>" << taskCount << "</text>" << Endl
+            << "' y='" << s->OffsetY + s->Height / 2 + offsetY + INTERNAL_TEXT_HEIGHT / 2 << "'>" << s->Tasks << "</text>" << Endl
             << "</g>" << Endl;
         }
 
@@ -1591,7 +1604,7 @@ void TPlan::PrintSvg(ui64 maxTime, ui32& offsetY, TStringBuilder& background, TS
             if (d) {
                 title << " " << FormatBytes(s->OutputBytes->Details.Sum * 1000 / d) << "/s";
                 if (s->OutputRows) {
-                    title << ", Rows " << FormatIntegerValue(s->OutputRows->Details.Sum * 1000 / d) << "/s";
+                    title << ", Rows " << FormatInteger(s->OutputRows->Details.Sum * 1000 / d) << "/s";
                 }
             }
             PrintTimeline(background, canvas, title, s->OutputBytes->FirstMessage, s->OutputBytes->LastMessage, px, y0, pw, INTERNAL_HEIGHT, Config.Palette.OutputMedium);
@@ -1796,7 +1809,7 @@ void TPlan::PrintSvg(ui64 maxTime, ui32& offsetY, TStringBuilder& background, TS
                     if (d) {
                         title << " " << FormatBytes(c->CteOutputBytes->Details.Sum * 1000 / d) << "/s";
                         if (c->CteOutputRows) {
-                            title << ", Rows " << FormatIntegerValue(c->CteOutputRows->Details.Sum * 1000 / d) << "/s";
+                            title << ", Rows " << FormatInteger(c->CteOutputRows->Details.Sum * 1000 / d) << "/s";
                         }
                     }
                     PrintTimeline(background, canvas, title, c->CteOutputBytes->FirstMessage, c->CteOutputBytes->LastMessage, px, y + INTERNAL_GAP_Y, pw, INTERNAL_HEIGHT, Config.Palette.OutputMedium);
@@ -1870,7 +1883,7 @@ void TPlan::PrintSvg(ui64 maxTime, ui32& offsetY, TStringBuilder& background, TS
                 TStringBuilder tooltip;
                 auto textSum = FormatTooltip(tooltip, "Input", c->InputBytes.get(), FormatBytes);
                 if (c->InputRows) {
-                    FormatTooltip(tooltip, ", Rows", c->InputBytes.get(), FormatInteger);
+                    FormatTooltip(tooltip, ", Rows", c->InputRows.get(), FormatInteger);
                     if (c->InputRows->Details.Sum) {
                         tooltip << ", Width " << FormatBytes(c->InputBytes->Details.Sum / c->InputRows->Details.Sum);
                     }
@@ -1883,7 +1896,7 @@ void TPlan::PrintSvg(ui64 maxTime, ui32& offsetY, TStringBuilder& background, TS
                 if (d) {
                     title << " " << FormatBytes(c->InputBytes->Details.Sum * 1000 / d) << "/s";
                     if (c->InputRows) {
-                        title << ", Rows " << FormatIntegerValue(c->InputRows->Details.Sum * 1000 / d) << "/s";
+                        title << ", Rows " << FormatInteger(c->InputRows->Details.Sum * 1000 / d) << "/s";
                     }
                 }
                 PrintTimeline(background, canvas, title, c->InputBytes->FirstMessage, c->InputBytes->LastMessage, px, y0, pw, INTERNAL_HEIGHT, Config.Palette.InputMedium);
@@ -1917,7 +1930,7 @@ void TPlan::PrintSvg(ui64 maxTime, ui32& offsetY, TStringBuilder& background, TS
             if (d) {
                 title << " " << FormatBytes(s->IngressBytes->Details.Sum * 1000 / d) << "/s";
                 if (s->IngressRows) {
-                    title << ", Rows " << FormatIntegerValue(s->IngressRows->Details.Sum / d) << "/s";
+                    title << ", Rows " << FormatInteger(s->IngressRows->Details.Sum / d) << "/s";
                 }
             }
             PrintTimeline(background, canvas, title, s->IngressBytes->FirstMessage, s->IngressBytes->LastMessage, px, y0, pw, INTERNAL_HEIGHT, Config.Palette.IngressMedium);

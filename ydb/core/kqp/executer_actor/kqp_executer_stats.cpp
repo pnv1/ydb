@@ -213,6 +213,7 @@ void TStageExecutionStats::Resize(ui32 taskCount) {
     for (auto& [_, a] : Aggregations) a.Resize(taskCount);
 
     MaxMemoryUsage.Resize(taskCount);
+    Finished.resize(taskCount);
 }
 
 void TStageExecutionStats::SetHistorySampleCount(ui32 historySampleCount) {
@@ -320,7 +321,7 @@ ui64 TStageExecutionStats::UpdateAsyncStats(ui32 index, TAsyncStats& aggrAsyncSt
     return baseTimeMs;
 }
 
-ui64 TStageExecutionStats::UpdateStats(const NYql::NDqProto::TDqTaskStats& taskStats, ui64 maxMemoryUsage, ui64 durationUs) {
+ui64 TStageExecutionStats::UpdateStats(const NYql::NDqProto::TDqTaskStats& taskStats, NYql::NDqProto::EComputeState state, ui64 maxMemoryUsage, ui64 durationUs) {
     auto taskId = taskStats.GetTaskId();
     auto it = Task2Index.find(taskId);
     ui64 baseTimeMs = 0;
@@ -337,6 +338,13 @@ ui64 TStageExecutionStats::UpdateStats(const NYql::NDqProto::TDqTaskStats& taskS
         Task2Index.emplace(taskId, index);
     } else {
         index = it->second;
+    }
+
+    if (state == NYql::NDqProto::COMPUTE_STATE_FINISHED) {
+        if (!Finished[index]) {
+            Finished[index] = true;
+            FinishedCount++;
+        }
     }
 
     CpuTimeUs.SetNonZero(index, taskStats.GetCpuTimeUs());
@@ -661,11 +669,15 @@ ui64 TQueryExecutionStats::EstimateFinishMem() {
 
 void TQueryExecutionStats::AddComputeActorFullStatsByTask(
         const NYql::NDqProto::TDqTaskStats& task,
-        const NYql::NDqProto::TDqComputeActorStats& stats
+        const NYql::NDqProto::TDqComputeActorStats& stats,
+        NYql::NDqProto::EComputeState state
     ) {
     auto* stageStats = GetOrCreateStageStats(task, *TasksGraph, *Result);
 
     stageStats->SetTotalTasksCount(stageStats->GetTotalTasksCount() + 1);
+    if (state == NYql::NDqProto::COMPUTE_STATE_FINISHED) {
+        stageStats->SetFinishedTasksCount(stageStats->GetFinishedTasksCount() + 1);
+    }
     UpdateAggr(stageStats->MutableMaxMemoryUsage(), stats.GetMaxMemoryUsage()); // only 1 task per CA now
     UpdateAggr(stageStats->MutableCpuTimeUs(), task.GetCpuTimeUs());
     UpdateAggr(stageStats->MutableSourceCpuTimeUs(), task.GetSourceCpuTimeUs());
@@ -772,13 +784,17 @@ void TQueryExecutionStats::AddComputeActorFullStatsByTask(
 }
 
 void TQueryExecutionStats::AddComputeActorProfileStatsByTask(
-        const NYql::NDqProto::TDqTaskStats& task, const NYql::NDqProto::TDqComputeActorStats& stats) {
+        const NYql::NDqProto::TDqTaskStats& task, const NYql::NDqProto::TDqComputeActorStats& stats,
+        bool keepOnlyLastTask) {
     auto* stageStats = GetOrCreateStageStats(task, *TasksGraph, *Result);
+    if (keepOnlyLastTask) {
+        stageStats->MutableComputeActors()->Clear();
+    }
     stageStats->AddComputeActors()->CopyFrom(stats);
 }
 
 void TQueryExecutionStats::AddComputeActorStats(ui32 /* nodeId */, NYql::NDqProto::TDqComputeActorStats&& stats,
-        TDuration collectLongTaskStatsTimeout) {
+    NYql::NDqProto::EComputeState state, TDuration collectLongTaskStatsTimeout) {
 //    Cerr << (TStringBuilder() << "::AddComputeActorStats " << stats.DebugString() << Endl);
 
     Result->SetCpuTimeUs(Result->GetCpuTimeUs() + stats.GetCpuTimeUs());
@@ -787,7 +803,7 @@ void TQueryExecutionStats::AddComputeActorStats(ui32 /* nodeId */, NYql::NDqProt
 
     UpdateAggr(ExtraStats.MutableComputeCpuTimeUs(), stats.GetCpuTimeUs());
 
-    auto longTasks = TVector<NYql::NDqProto::TDqTaskStats*>(Reserve(stats.GetTasks().size()));
+    NYql::NDqProto::TDqTaskStats * longTask = nullptr;
 
     for (auto& task : *stats.MutableTasks()) {
         ResultBytes += task.GetResultBytes();
@@ -833,26 +849,27 @@ void TQueryExecutionStats::AddComputeActorStats(ui32 /* nodeId */, NYql::NDqProt
         //      enough to result in an enormous duration - triggering the "long tasks" mode.
 
         auto taskDuration = TDuration::MilliSeconds(task.GetFinishTimeMs() - task.GetStartTimeMs());
-        bool longTask = taskDuration > collectLongTaskStatsTimeout;
-        if (longTask) {
+        auto& longestTaskDuration = LongestTaskDurations[task.GetStageId()];
+        if (taskDuration > Max(collectLongTaskStatsTimeout, longestTaskDuration)) {
             CollectStatsByLongTasks = true;
-            longTasks.push_back(&task);
+            longTask = &task;
+            longestTaskDuration = taskDuration;
         }
     }
 
     if (CollectFullStats(StatsMode)) {
         for (const auto& task : stats.GetTasks()) {
-            AddComputeActorFullStatsByTask(task, stats);
+            AddComputeActorFullStatsByTask(task, stats, state);
         }
     }
 
     if (CollectProfileStats(StatsMode)) {
         for (const auto& task : stats.GetTasks()) {
-            AddComputeActorProfileStatsByTask(task, stats);
+            AddComputeActorProfileStatsByTask(task, stats, false);
         }
     } else {
-        for (const auto* task : longTasks) {
-            AddComputeActorProfileStatsByTask(*task, stats);
+        if (longTask) {
+            AddComputeActorProfileStatsByTask(*longTask, stats, true);
         }
     }
 }
@@ -949,7 +966,7 @@ void TQueryExecutionStats::AddDatashardStats(NYql::NDqProto::TDqComputeActorStat
     Result->SetCpuTimeUs(Result->GetCpuTimeUs() + datashardCpuTimeUs);
     TotalTasks += stats.GetTasks().size();
 
-    auto longTasks = TVector<NYql::NDqProto::TDqTaskStats*>(Reserve(stats.GetTasks().size()));
+    NYql::NDqProto::TDqTaskStats* longTask = nullptr;
 
     for (auto& task : *stats.MutableTasks()) {
         for (auto& table : task.GetTables()) {
@@ -976,11 +993,13 @@ void TQueryExecutionStats::AddDatashardStats(NYql::NDqProto::TDqComputeActorStat
         }
 
         // checking whether the task is long
+
         auto taskDuration = TDuration::MilliSeconds(task.GetFinishTimeMs() - task.GetStartTimeMs());
-        bool longTask = taskDuration > collectLongTaskStatsTimeout;
-        if (longTask) {
+        auto& longestTaskDuration = LongestTaskDurations[task.GetStageId()];
+        if (taskDuration > Max(collectLongTaskStatsTimeout, longestTaskDuration)) {
             CollectStatsByLongTasks = true;
-            longTasks.push_back(&task);
+            longTask = &task;
+            longestTaskDuration = taskDuration;
         }
     }
 
@@ -990,18 +1009,18 @@ void TQueryExecutionStats::AddDatashardStats(NYql::NDqProto::TDqComputeActorStat
         }
         DatashardStats.emplace_back(std::move(txStats));
     } else {
-        if (!longTasks.empty()) {
+        if (longTask) {
             DatashardStats.emplace_back(std::move(txStats));
         }
     }
 
     if (CollectProfileStats(StatsMode)) {
         for (const auto& task : stats.GetTasks()) {
-            AddComputeActorProfileStatsByTask(task, stats);
+            AddComputeActorProfileStatsByTask(task, stats, false);
         }
     } else {
-        for (const auto* task : longTasks) {
-            AddComputeActorProfileStatsByTask(*task, stats);
+        if (longTask) {
+            AddComputeActorProfileStatsByTask(*longTask, stats, true);
         }
     }
 }
@@ -1042,7 +1061,7 @@ void TQueryExecutionStats::AddBufferStats(NYql::NDqProto::TDqTaskStats&& taskSta
     }
 }
 
-void TQueryExecutionStats::UpdateTaskStats(ui64 taskId, const NYql::NDqProto::TDqComputeActorStats& stats) {
+void TQueryExecutionStats::UpdateTaskStats(ui64 taskId, const NYql::NDqProto::TDqComputeActorStats& stats, NYql::NDqProto::EComputeState state) {
     Y_ASSERT(stats.GetTasks().size() == 1);
     const NYql::NDqProto::TDqTaskStats& taskStats = stats.GetTasks(0);
     Y_ASSERT(taskStats.GetTaskId() == taskId);
@@ -1052,7 +1071,7 @@ void TQueryExecutionStats::UpdateTaskStats(ui64 taskId, const NYql::NDqProto::TD
         it->second.StageId = TasksGraph->GetTask(taskStats.GetTaskId()).StageId;
         it->second.SetHistorySampleCount(HistorySampleCount);
     }
-    BaseTimeMs = NonZeroMin(BaseTimeMs, it->second.UpdateStats(taskStats, stats.GetMaxMemoryUsage(), stats.GetDurationUs()));
+    BaseTimeMs = NonZeroMin(BaseTimeMs, it->second.UpdateStats(taskStats, state, stats.GetMaxMemoryUsage(), stats.GetDurationUs()));
 }
 
 void ExportAggStats(std::vector<ui64>& data, NYql::NDqProto::TDqStatsMinMax& stats) {
@@ -1212,6 +1231,7 @@ void TQueryExecutionStats::ExportExecStats(NYql::NDqProto::TDqExecutionStats& st
     for (auto& [stageId, stageStat] : StageStats) {
         auto& stageStats = *protoStages[stageStat.StageId.StageId];
         stageStats.SetTotalTasksCount(stageStat.Task2Index.size());
+        stageStats.SetFinishedTasksCount(stageStat.FinishedCount);
 
         stageStats.SetBaseTimeMs(BaseTimeMs);
         stageStat.CpuTimeUs.ExportAggStats(BaseTimeMs, *stageStats.MutableCpuTimeUs());
