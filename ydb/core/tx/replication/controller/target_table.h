@@ -66,9 +66,16 @@ public:
     explicit TTargetTransfer(TReplication* replication,
         ui64 id, const IConfig::TPtr& config);
 
+    void UpdateConfig(const NKikimrReplication::TReplicationConfig&) override;
+
+    void Progress(const TActorContext& ctx) override;
+    void Shutdown(const TActorContext& ctx) override;
 
 protected:
     TString BuildStreamPath() const override;
+
+private:
+    TActorId StreamConsumerRemover;
 };
 
 }
