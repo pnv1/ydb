@@ -3102,12 +3102,13 @@ TStatus CollectJoinSideStats(ESizeStatCollectMode sizeMode, TJoinSideStats& stat
         return TStatus::Ok;
     }
 
-    TVector<ui64> dataSizes;
-    auto status = TryEstimateDataSizeChecked(dataSizes, inputSection, cluster, tableInfo, {}, state, ctx);
+    IYtGateway::TPathStatResult pathStatResult;
+    auto status = TryEstimateDataSizeChecked(pathStatResult, inputSection, cluster, tableInfo, {}, state, ctx);
     if (status.Level != TStatus::Ok) {
         return status;
     }
 
+    TVector<ui64> dataSizes = std::move(pathStatResult.DataSize);
     stats.Size = Accumulate(dataSizes.begin(), dataSizes.end(), 0ull, [](ui64 sum, ui64 v) { return sum + v; });
     return TStatus::Ok;
 }
@@ -3148,6 +3149,23 @@ TStatus CollectPathsAndLabels(TVector<TYtPathInfo::TPtr>& tables, TJoinLabels& l
     }
 
     return TStatus::Ok;
+}
+
+void ReportMultipleJoinLeafDataSize(const TYtEquiJoin& equiJoin, const TMapJoinSettings& settings, const TYtState::TPtr& state) {
+    if (!state->Configuration->ReportEquiJoinStats.Get().GetOrElse(DEFAULT_REPORT_EQUIJOIN_STATS)) {
+        return;
+    }
+
+    if (!HasSetting(equiJoin.JoinOptions().Ref(), "multiple_joins")) {
+        return;
+    }
+
+    YQL_CLOG(INFO, ProviderYt) << "Reporting data sizes for a multiple join leaf: leftSize=" << settings.LeftSize << ", rightSize=" << settings.RightSize;
+
+    size_t dataSize = settings.LeftSize + settings.RightSize;
+    with_lock(state->StatisticsMutex) {
+        state->Statistics[Max<ui32>()].Entries.emplace_back("YtEquiJoin_MultipleTotalDataSize", dataSize, 0, 0, 0, 0);
+    }
 }
 
 TStatus RewriteYtEquiJoinLeaf(TYtEquiJoin equiJoin, TYtJoinNodeOp& op, TYtJoinNodeLeaf& leftLeaf,
@@ -3311,6 +3329,7 @@ TStatus RewriteYtEquiJoinLeaf(TYtEquiJoin equiJoin, TYtJoinNodeOp& op, TYtJoinNo
             }
 
             mapSettings.SwapTables = swapTables;
+            ReportMultipleJoinLeafDataSize(equiJoin, mapSettings, state);
 
             if (swapTables) {
                 DoSwap(mapSettings.LeftRows, mapSettings.RightRows);
@@ -3351,6 +3370,8 @@ TStatus RewriteYtEquiJoinLeaf(TYtEquiJoin equiJoin, TYtJoinNodeOp& op, TYtJoinNo
         << ", right unique: " << rightStats.HasUniqueKeys << ", left sorted prefix: ["
         << JoinSeq(",", leftStats.SortedKeys) << "], right sorted prefix: ["
         << JoinSeq(",", rightStats.SortedKeys) << "]";
+
+    ReportMultipleJoinLeafDataSize(equiJoin, mapSettings, state);
 
     bool allowOrderedJoin = !isCross && ((leftTablesReady && rightTablesReady) || forceMergeJoin);
 
@@ -4092,6 +4113,33 @@ const TStructExprType* MakeStructMembersOptional(const TStructExprType& input, T
     return ctx.MakeType<TStructExprType>(structItems);
 }
 
+void ReportMultipleJoinLeafDataSizeForStarJoin(const TYtEquiJoin& equiJoin, const TVector<TYtSection>& sections, const TYtState::TPtr& state) {
+    if (!state->Configuration->ReportEquiJoinStats.Get().GetOrElse(DEFAULT_REPORT_EQUIJOIN_STATS)) {
+        return;
+    }
+
+    if (!HasSetting(equiJoin.JoinOptions().Ref(), "multiple_joins")) {
+        return;
+    }
+
+    size_t dataSize = 0;
+    for (const auto& section : sections) {
+        for (const auto& path : section.Paths()) {
+            auto tableInfo = TYtTableBaseInfo::Parse(path.Table());
+            if (tableInfo->Stat) {
+                dataSize += tableInfo->Stat->DataSize;
+            } else {
+                YQL_CLOG(INFO, ProviderYt) << "Missing stat for table \"" << tableInfo->Name << "\"";
+            }
+        }
+    }
+
+    YQL_CLOG(INFO, ProviderYt) << "Reporting total dataSize=" << dataSize << " for a star join";
+    with_lock(state->StatisticsMutex) {
+        state->Statistics[Max<ui32>()].Entries.emplace_back("YtEquiJoin_MultipleTotalDataSize", dataSize, 0, 0, 0, 0);
+    }
+}
+
 EStarRewriteStatus RewriteYtEquiJoinStarSingleChain(TYtEquiJoin equiJoin, TYtJoinNodeOp& op, const TYtState::TPtr& state, TExprContext& ctx) {
 
     YQL_ENSURE(op.StarOptions.size() == 1);
@@ -4335,6 +4383,8 @@ EStarRewriteStatus RewriteYtEquiJoinStarSingleChain(TYtEquiJoin equiJoin, TYtJoi
                                    << "] -> " << starLabel << ":[" << JoinSeq(",", item.StarKeyList) << "]";
     }
     YQL_CLOG(INFO, ProviderYt) << "StarJoin result type is " << *(const TTypeAnnotationNode*)chainOutputType;
+
+    ReportMultipleJoinLeafDataSizeForStarJoin(equiJoin, reduceSections, state);
 
     TExprNode::TPtr groupArg = ctx.NewArgument(pos, "group");
     TExprNode::TPtr nullFilteredRenamedAndPremappedStream = ctx.Builder(pos)
@@ -4816,15 +4866,17 @@ EStarRewriteStatus RewriteYtEquiJoinStar(TYtEquiJoin equiJoin, TYtJoinNodeOp& op
 
 } // namespace
 
-IGraphTransformer::TStatus TryEstimateDataSizeChecked(TVector<ui64>& result, TYtSection& inputSection, const TString& cluster,
+IGraphTransformer::TStatus TryEstimateDataSizeChecked(IYtGateway::TPathStatResult& result, TYtSection& inputSection, const TString& cluster,
     const TVector<TYtPathInfo::TPtr>& paths, const TMaybe<TVector<TString>>& columns, const TYtState& state, TExprContext& ctx)
 {
+    result = IYtGateway::TPathStatResult();
     if (GetJoinCollectColumnarStatisticsMode(*state.Configuration) == EJoinCollectColumnarStatisticsMode::Sync) {
         auto syncResult = EstimateDataSize(cluster, paths, columns, state, ctx);
         if (!syncResult) {
             return IGraphTransformer::TStatus::Error;
         }
-        result = std::move(*syncResult);
+        result.DataSize = std::move(*syncResult);
+        result.Extended.resize(result.DataSize.size());
         return IGraphTransformer::TStatus::Ok;
     }
 
@@ -4939,11 +4991,12 @@ TStatus CalculateJoinLeafSize(ui64& result, TMapJoinSettings& settings, TYtSecti
 
     if (!needPayload && !op.JoinKind->IsAtom("Cross")) {
         if (joinKeyList.size() < itemType->GetSize()) {
-            TVector<ui64> dataSizes;
-            auto status = TryEstimateDataSizeChecked(dataSizes, inputSection, cluster, tables, joinKeyList, *state, ctx);
+            IYtGateway::TPathStatResult pathStatResult;
+            auto status = TryEstimateDataSizeChecked(pathStatResult, inputSection, cluster, tables, joinKeyList, *state, ctx);
             if (status.Level != TStatus::Ok) {
                 return status;
             }
+            TVector<ui64> dataSizes = std::move(pathStatResult.DataSize);
             result = Accumulate(dataSizes.begin(), dataSizes.end(), 0ull, [](ui64 sum, ui64 v) { return sum + v; });;
         }
     }
@@ -5155,21 +5208,6 @@ TMaybeNode<TExprBase> ExportYtEquiJoin(TYtEquiJoin equiJoin, const TYtJoinNodeOp
     children.reserve(children.size() + premaps.size());
     std::transform(premaps.cbegin(), premaps.cend(), std::back_inserter(children), std::bind(&TExprBase::Ptr, std::placeholders::_1));
     return TExprBase(ctx.ChangeChildren(join.Ref(), std::move(children)));
-}
-
-TString JoinLeafLabel(TExprNode::TPtr label) {
-    if (label->ChildrenSize() == 0) {
-        return TString(label->Content());
-    }
-    TString result;
-    for (ui32 i = 0; i < label->ChildrenSize(); ++i) {
-        result += label->Child(i)->Content();
-        if (i+1 != label->ChildrenSize()) {
-            result += ",";
-        }
-    }
-
-    return result;
 }
 
 }
