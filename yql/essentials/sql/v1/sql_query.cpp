@@ -7,6 +7,7 @@
 #include "antlr_token.h"
 #include <yql/essentials/sql/v1/object_processing.h>
 #include <yql/essentials/utils/yql_paths.h>
+#include <yql/essentials/public/udf/udf_log.h>
 #include <util/generic/scope.h>
 #include <util/string/join.h>
 #ifdef GetMessage
@@ -162,6 +163,8 @@ static bool TransferSettingsEntry(std::map<TString, TNodePtr>& out,
         "user",
         "password",
         "password_secret_name",
+        "flush_interval",
+        "batch_size_bytes",
     };
 
     TSet<TString> stateSettings = {
@@ -169,14 +172,23 @@ static bool TransferSettingsEntry(std::map<TString, TNodePtr>& out,
         "failover_mode",
     };
 
+    TSet<TString> crateOnlySettings = {
+        "consumer",
+    };
+
     const auto keyName = to_lower(key.Name);
-    if (!configSettings.count(keyName) && !stateSettings.contains(keyName)) {
+    if (!configSettings.count(keyName) && !stateSettings.contains(keyName) && !crateOnlySettings.contains(keyName)) {
         ctx.Context().Error() << "Unknown transfer setting: " << key.Name;
         return false;
     }
 
     if (create && stateSettings.count(keyName)) {
         ctx.Context().Error() << key.Name << " is not supported in CREATE";
+        return false;
+    }
+
+    if (!create && crateOnlySettings.contains(keyName)) {
+        ctx.Context().Error() << key.Name << " is not supported in ALTER";
         return false;
     }
 
@@ -1949,7 +1961,7 @@ bool TSqlQuery::Statement(TVector<TNodePtr>& blocks, const TRule_sql_stmt_core& 
             break;
         }
         case TRule_sql_stmt_core::kAltSqlStmtCore62: {
-            // show_create_table_stmt: SHOW CREATE TABLE table_ref
+            // show_create_table_stmt: SHOW CREATE (TABLE | VIEW) table_ref
             Ctx.BodyPart();
             const auto& rule = core.GetAlt_sql_stmt_core62().GetRule_show_create_table_stmt1();
 
@@ -1957,8 +1969,16 @@ bool TSqlQuery::Statement(TVector<TNodePtr>& blocks, const TRule_sql_stmt_core& 
             if (!SimpleTableRefImpl(rule.GetRule_simple_table_ref4(), tr)) {
                 return false;
             }
+            TString type;
+            if (auto typeToken = to_lower(rule.GetToken3().GetValue()); typeToken == "table") {
+                type = "showCreateTable";
+            } else if (typeToken == "view") {
+                type = "showCreateView";
+            } else {
+                YQL_ENSURE(false, "Unsupported SHOW CREATE statement type: " << typeToken);
+            }
 
-            AddStatementToBlocks(blocks, BuildShowCreate(Ctx.Pos(), tr, Ctx.Scoped));
+            AddStatementToBlocks(blocks, BuildShowCreate(Ctx.Pos(), tr, type, Ctx.Scoped));
             break;
         }
         case TRule_sql_stmt_core::ALT_NOT_SET:
@@ -2962,6 +2982,22 @@ TNodePtr TSqlQuery::PragmaStatement(const TRule_pragma_stmt& stmt, bool& success
             }
 
             Ctx.IncrementMonCounter("sql_pragma", "ResultSizeLimit");
+        } else if (normalizedPragma == "runtimeloglevel") {
+            if (values.size() != 1 || !values[0].GetLiteral()) {
+                Error() << "Expected LogLevel as a single argument for: " << pragma;
+                Ctx.IncrementMonCounter("sql_errors", "BadPragmaValue");
+                return {};
+            }
+
+            auto value = to_title(*values[0].GetLiteral());
+            if (!NUdf::TryLevelFromString(value)) {
+                Error() << "Expected LogLevel as a single argument for: " << pragma;
+                Ctx.IncrementMonCounter("sql_errors", "BadPragmaValue");
+                return {};
+            }
+
+            Ctx.RuntimeLogLevel = value;
+            Ctx.IncrementMonCounter("sql_pragma", "RuntimeLogLevel");
         } else if (normalizedPragma == "warning") {
             if (values.size() != 2U || values.front().Empty() || values.back().Empty()) {
                 Error() << "Expected arguments <action>, <issueId> for: " << pragma;
@@ -3493,13 +3529,19 @@ TNodePtr TSqlQuery::Build(const TRule_delete_stmt& stmt) {
 
     TSourcePtr source = BuildTableSource(Ctx.Pos(), table);
 
+    const bool isBatch = stmt.HasBlock1();
     TNodePtr options = nullptr;
+
     if (stmt.HasBlock6()) {
+        if (isBatch) {
+          Ctx.Error(GetPos(stmt.GetToken2()))
+              << "BATCH DELETE is unsupported with RETURNING";
+          return nullptr;
+        }
+
         options = ReturningList(stmt.GetBlock6().GetRule_returning_columns_list1());
         options = options->Y(options);
     }
-
-    const bool isBatch = stmt.HasBlock1();
 
     if (stmt.HasBlock5()) {
         switch (stmt.GetBlock5().Alt_case()) {
@@ -3557,13 +3599,19 @@ TNodePtr TSqlQuery::Build(const TRule_update_stmt& stmt) {
         return nullptr;
     }
 
+    const bool isBatch = stmt.HasBlock1();
     TNodePtr options = nullptr;
+
     if (stmt.HasBlock5()) {
+        if (isBatch) {
+            Ctx.Error(GetPos(stmt.GetToken2()))
+                << "BATCH UPDATE is unsupported with RETURNING";
+            return nullptr;
+        }
+
         options = ReturningList(stmt.GetBlock5().GetRule_returning_columns_list1());
         options = options->Y(options);
     }
-
-    const bool isBatch = stmt.HasBlock1();
 
     switch (stmt.GetBlock4().Alt_case()) {
         case TRule_update_stmt_TBlock4::kAlt1: {

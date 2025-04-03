@@ -82,6 +82,7 @@ NKikimr::TConclusion<bool> TFilterCutLimit::DoExecuteInplace(
 
 TConclusion<bool> TPortionAccessorFetchingStep::DoExecuteInplace(
     const std::shared_ptr<IDataSource>& source, const TFetchingScriptCursor& step) const {
+    FOR_DEBUG_LOG(NKikimrServices::COLUMNSHARD_SCAN_EVLOG, source->AddEvent("sacc"));
     return !source->StartFetchingAccessor(source, step);
 }
 
@@ -97,6 +98,7 @@ TConclusion<bool> TDetectInMem::DoExecuteInplace(const std::shared_ptr<IDataSour
     auto plan = source->GetContext()->GetColumnsFetchingPlan(source);
     source->InitFetchingPlan(plan);
     TFetchingScriptCursor cursor(plan, 0);
+    FOR_DEBUG_LOG(NKikimrServices::COLUMNSHARD_SCAN_EVLOG, source->AddEvent("sdmem"));
     auto task = std::make_shared<TStepAction>(source, std::move(cursor), source->GetContext()->GetCommonContext()->GetScanActorId());
     NConveyor::TScanServiceOperator::SendTaskToExecute(task);
     return false;
@@ -157,7 +159,10 @@ TConclusion<bool> TBuildResultStep::DoExecuteInplace(const std::shared_ptr<IData
     if (!source->GetStageResult().IsEmpty()) {
         resultBatch = source->GetStageResult().GetBatch()->BuildTableVerified(contextTableConstruct);
         if (auto filter = source->GetStageResult().GetNotAppliedFilter()) {
-            AFL_VERIFY(filter->Apply(resultBatch, NArrow::TColumnFilter::TApplyContext(StartIndex, RecordsCount).SetTrySlices(true)));
+            filter->Apply(resultBatch, NArrow::TColumnFilter::TApplyContext(StartIndex, RecordsCount).SetTrySlices(true));
+            if (!resultBatch->num_rows()) {
+                resultBatch = nullptr;
+            }
         }
     }
 

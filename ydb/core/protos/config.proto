@@ -551,6 +551,7 @@ message TMonitoringConfig {
     optional string MemAllocDumpPathPrefix = 16;
     optional uint32 MaxRequestsPerSecond = 17 [default = 0];
     optional string InactivityTimeout = 18 [default = "2m"];
+    optional bool HideHttpEndpoint = 19 [default = false];
 }
 
 message TRestartsCountConfig {
@@ -716,6 +717,23 @@ message TGRpcConfig {
 
     repeated string RatelimiterServicesEnabled = 25;
     repeated string RatelimiterServicesDisabled = 26;
+
+    enum YdbGrpcCompressionAlgorithm {
+        YDB_GRPC_COMPRESS_NONE = 0;
+        YDB_GRPC_COMPRESS_DEFLATE = 1;
+        YDB_GRPC_COMPRESS_GZIP = 2;
+    };
+
+    optional YdbGrpcCompressionAlgorithm DefaultCompressionAlgorithm = 30 [default = YDB_GRPC_COMPRESS_GZIP];
+
+    enum YdbGrpcCompressionLevel {
+        YDB_GRPC_COMPRESS_LEVEL_NONE = 0;
+        YDB_GRPC_COMPRESS_LEVEL_LOW = 1;
+        YDB_GRPC_COMPRESS_LEVEL_MED = 2;
+        YDB_GRPC_COMPRESS_LEVEL_HIGH = 3;
+    }
+
+    optional YdbGrpcCompressionLevel DefaultCompressionLevel = 31 [default = YDB_GRPC_COMPRESS_LEVEL_MED];
 
     // server socket options
     optional bool   KeepAliveEnable = 100 [default = true]; // SO_KEEPALIVE
@@ -1229,7 +1247,7 @@ message TImmediateControlsConfig {
             DefaultValue: 0 }];
 
         optional uint64 ReadIteratorKeysExtBlobsPrecharge = 21 [(ControlOptions) = {
-          Description: "Enable new precharge for DataShard read iterator",
+          Description: "Enable external blobs precharge for DataShard read iterator keys requests",
           MinValue: 0,
           MaxValue: 1,
           DefaultValue: 0 }];
@@ -1454,6 +1472,12 @@ message TImmediateControlsConfig {
             MinValue: 1,
             MaxValue: 1000,
             DefaultValue: 130 }];
+
+        optional uint64 MaxInProgressSyncCount = 27 [(ControlOptions) = {
+            Description: "Maximum number of simultaneous VDisk sync processes; 0 means no limit",
+            MinValue: 0,
+            MaxValue: 1000,
+            DefaultValue: 0 }];
     }
 
     message TTabletControls {
@@ -1589,6 +1613,18 @@ message TImmediateControlsConfig {
         }];
     }
 
+    message TGRpcControls {
+        message TRequestConfig {
+            optional uint64 MaxInFlight = 1 [(ControlOptions) = {
+                Description: "Max in flight requests",
+                MinValue: 0,
+                MaxValue: 1000000,
+                DefaultValue: 0
+            }];
+        }
+        map<string, TRequestConfig> RequestConfigs = 1;
+    }
+
     optional TDataShardControls DataShardControls = 1;
     optional TTxLimitControls TxLimitControls = 2;
     optional TCoordinatorControls CoordinatorControls = 3;
@@ -1602,6 +1638,7 @@ message TImmediateControlsConfig {
     optional TBlobStorageControllerControls BlobStorageControllerControls = 11;
     optional TTableServiceControls TableServiceControls = 12;
     optional TTestShardControls TestShardControls = 13;
+    optional TGRpcControls GRpcControls = 14;
 };
 
 message TMeteringConfig {
@@ -1893,6 +1930,10 @@ message TSchemeShardConfig {
 
     // number of shards per table
     optional uint32 MaxCdcInitialScanShardsInFlight = 5 [default = 32];
+
+    // number of shards per table
+    // 0 means default - NKikimrIndexBuilder.TIndexBuildSettings.max_shards_in_flight
+    optional uint32 MaxRestoreBuildIndexShardsInFlight = 6 [default = 1000];
 }
 
 message TCompactionConfig {

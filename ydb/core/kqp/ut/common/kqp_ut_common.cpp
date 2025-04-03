@@ -1,6 +1,7 @@
 #include "kqp_ut_common.h"
 
 #include <ydb/core/base/backtrace.h>
+#include <ydb/core/tx/datashard/datashard.h>
 #include <ydb/core/tx/schemeshard/schemeshard.h>
 #include <ydb/core/kqp/counters/kqp_counters.h>
 #include <ydb/core/kqp/provider/yql_kikimr_results.h>
@@ -134,6 +135,7 @@ TKikimrRunner::TKikimrRunner(const TKikimrSettings& settings) {
     ServerSettings->SetEnableTablePgTypes(true);
     ServerSettings->SetEnablePgSyntax(true);
     ServerSettings->S3ActorsFactory = settings.S3ActorsFactory;
+    ServerSettings->Controls = settings.Controls;
     ServerSettings->SetEnableForceFollowers(settings.EnableForceFollowers);
 
     if (!settings.FeatureFlags.HasEnableOlapCompression()) {
@@ -1472,6 +1474,34 @@ void WaitForZeroReadIterators(Tests::TServer& server, const TString& path) {
     UNIT_ASSERT_C(iterators == 0, "Unable to wait for proper read iterator count, it looks like cancelation doesn`t work (" << iterators << ")");
 }
 
+TTableId ResolveTableId(Tests::TServer* server, TActorId sender, const TString& path) {
+    auto response = Navigate(*server->GetRuntime(), sender, path, NSchemeCache::TSchemeCacheNavigate::EOp::OpUnknown);
+    return response->ResultSet.at(0).TableId;
+}
+
+NKikimrTxDataShard::TEvCompactTableResult CompactTable(
+    Tests::TServer* server, ui64 shardId, const TTableId& tableId, bool compactBorrowed)
+{
+    TTestActorRuntime* runtime = server->GetRuntime();
+    auto sender = runtime->AllocateEdgeActor();
+    auto request = MakeHolder<TEvDataShard::TEvCompactTable>(tableId.PathId);
+    request->Record.SetCompactBorrowed(compactBorrowed);
+    runtime->SendToPipe(shardId, sender, request.Release(), 0, GetPipeConfigWithRetries());
+
+    auto ev = runtime->GrabEdgeEventRethrow<TEvDataShard::TEvCompactTableResult>(sender);
+    return ev->Get()->Record;
+}
+
+void WaitForCompaction(Tests::TServer* server, const TString& path, bool compactBorrowed) {
+    TTestActorRuntime* runtime = server->GetRuntime();
+    auto sender = runtime->AllocateEdgeActor();
+    auto shards = GetTableShards(server, sender, path);
+    auto tableId = ResolveTableId(server, sender, path);
+    for (auto shard : shards) {
+        CompactTable(server, shard, tableId, compactBorrowed);
+    }
+}
+
 NJson::TJsonValue SimplifyPlan(NJson::TJsonValue& opt, const TGetPlanParams& params) {
     const auto& [_, nodeType] = *opt.GetMapSafe().find("Node Type");
     bool isShuffle = nodeType.GetStringSafe().find("HashShuffle") != TString::npos;
@@ -1622,6 +1652,53 @@ NJson::TJsonValue GetJoinOrderFromDetailedJoinOrder(const TString& deserializedD
     NJson::TJsonValue optRoot;
     NJson::ReadJsonTree(deserializedDetailedJoinOrder, &optRoot, true);
     return GetJoinOrderFromDetailedJoinOrderImpl(optRoot);
+}
+
+TTestExtEnv::TTestExtEnv(TTestExtEnv::TEnvSettings envSettings) {
+    auto mbusPort = PortManager.GetPort();
+    auto grpcPort = PortManager.GetPort();
+
+    Settings = new Tests::TServerSettings(mbusPort);
+    EnvSettings = envSettings;
+
+    Settings->SetDomainName("Root");
+    Settings->SetNodeCount(EnvSettings.StaticNodeCount);
+    Settings->SetDynamicNodeCount(EnvSettings.DynamicNodeCount);
+    Settings->SetUseRealThreads(EnvSettings.UseRealThreads);
+    Settings->AddStoragePoolType(EnvSettings.PoolName);
+    Settings->SetFeatureFlags(EnvSettings.FeatureFlags);
+
+    Server = new Tests::TServer(*Settings);
+    Server->EnableGRpc(grpcPort);
+
+    auto sender = Server->GetRuntime()->AllocateEdgeActor();
+    Server->SetupRootStoragePools(sender);
+
+    Client = MakeHolder<Tests::TClient>(*Settings);
+
+    Tenants = MakeHolder<Tests::TTenants>(Server);
+
+    Endpoint = "localhost:" + ToString(grpcPort);
+    DriverConfig = NYdb::TDriverConfig().SetEndpoint(Endpoint);
+    Driver = MakeHolder<NYdb::TDriver>(DriverConfig);
+}
+
+TTestExtEnv::~TTestExtEnv() {
+    Driver->Stop(true);
+}
+
+void TTestExtEnv::CreateDatabase(const TString& databaseName) {
+    auto fullDbName = "/Root/" + databaseName;
+
+    Ydb::Cms::CreateDatabaseRequest request;
+    request.set_path(fullDbName);
+
+    auto* resources = request.mutable_resources();
+    auto* storage = resources->add_storage_units();
+    storage->set_unit_kind(EnvSettings.PoolName);
+    storage->set_count(1);
+
+    Tenants->CreateTenant(request, EnvSettings.DynamicNodeCount);
 }
 
 } // namspace NKqp

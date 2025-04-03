@@ -70,6 +70,7 @@ using EExecType = TEvKqpExecuter::TEvTxResponse::EExecutionType;
 
 const ui64 MaxTaskSize = 48_MB;
 constexpr ui64 PotentialUnsigned64OverflowLimit = (std::numeric_limits<ui64>::max() >> 1);
+constexpr ui64 PriorityTxShift = 32;
 
 std::pair<TString, TString> SerializeKqpTasksParametersForOlap(const TStageInfo& stageInfo, const TTask& task);
 
@@ -265,6 +266,9 @@ protected:
         for (auto& [shardId, nodeId] : ShardIdToNodeId) {
             ShardsOnNode[nodeId].push_back(shardId);
             ParticipantNodes.emplace(nodeId);
+            if (TxManager) {
+                TxManager->AddParticipantNode(nodeId);
+            }
         }
 
         if (IsDebugLogEnabled()) {
@@ -566,15 +570,14 @@ protected:
         }
 
         if (BufferActorId && Request.LocksOp == ELocksOp::Rollback) {
-            YQL_ENSURE(Request.Transactions.empty());
             static_cast<TDerived*>(this)->Finalize();
             return;
         }
 
         ExecuterStateSpan = NWilson::TSpan(TWilsonKqp::ExecuterTableResolve, ExecuterSpan.GetTraceId(), "WaitForTableResolve", NWilson::EFlags::AUTO_END);
 
-        auto kqpTableResolver = CreateKqpTableResolver(this->SelfId(), TxId, UserToken, Request.Transactions,
-            TasksGraph);
+        FillKqpTasksGraphStages(TasksGraph, Request.Transactions);
+        auto kqpTableResolver = CreateKqpTableResolver(this->SelfId(), TxId, UserToken, TasksGraph);
         KqpTableResolverId = this->RegisterWithSameMailbox(kqpTableResolver);
 
         LOG_T("Got request, become WaitResolveState");
@@ -961,6 +964,8 @@ protected:
             if (!settings.GetInconsistentTx() && TasksGraph.GetMeta().LockMode) {
                 settings.SetLockMode(*TasksGraph.GetMeta().LockMode);
             }
+
+            settings.SetPriority((task.StageId.TxId << PriorityTxShift) + settings.GetPriority());
 
             output.SinkSettings.ConstructInPlace();
             output.SinkSettings->PackFrom(settings);
@@ -1531,7 +1536,17 @@ protected:
         meta.Reads->emplace_back(std::move(readInfo));
     }
 
-    ui32 GetScanTasksPerNode(TStageInfo& stageInfo, const bool isOlapScan, const ui64 /*nodeId*/) const {
+    ui32 GetScanTasksPerNode(
+        TStageInfo& stageInfo,
+        const bool isOlapScan,
+        const ui64 /*nodeId*/,
+        bool enableShuffleElimination = false
+    ) const {
+        const auto& stage = stageInfo.Meta.GetStage(stageInfo.Id);
+        if (const auto taskCount = stage.GetTaskCount()) {
+            return taskCount;
+        }
+
         ui32 result = 0;
         if (isOlapScan) {
             if (AggregationSettings.HasCSScanThreadsPerNode()) {
@@ -1541,7 +1556,6 @@ protected:
                 result = predictor.CalcTasksOptimalCount(TStagePredictor::GetUsableThreads(), {});
             }
         } else {
-            const auto& stage = stageInfo.Meta.GetStage(stageInfo.Id);
             result = AggregationSettings.GetDSScanMinimalThreads();
             if (stage.GetProgram().GetSettings().GetHasSort()) {
                 result = std::max(result, AggregationSettings.GetDSBaseSortScanThreads());
@@ -1550,7 +1564,13 @@ protected:
                 result = std::max(result, AggregationSettings.GetDSBaseJoinScanThreads());
             }
         }
-        return Max<ui32>(1, result);
+        result = Max<ui32>(1, result);
+
+        if (enableShuffleElimination) {
+            result *= 2;
+        }
+
+        return result;
     }
 
     TTask& AssignScanTaskToShard(
@@ -1632,11 +1652,12 @@ protected:
         auto& stage = stageInfo.Meta.GetStage(stageInfo.Id);
 
         auto& columnShardHashV1Params = stageInfo.Meta.ColumnShardHashV1Params;
-        if (enableShuffleElimination && stageInfo.Meta.ColumnTableInfoPtr) {
+        if (enableShuffleElimination && stage.GetIsShuffleEliminated() && stageInfo.Meta.ColumnTableInfoPtr) {
             const auto& tableDesc = stageInfo.Meta.ColumnTableInfoPtr->Description;
             columnShardHashV1Params.SourceShardCount = tableDesc.GetColumnShardCount();
             columnShardHashV1Params.SourceTableKeyColumnTypes = std::make_shared<TVector<NScheme::TTypeInfo>>();
             for (const auto& column: tableDesc.GetSharding().GetHashSharding().GetColumns()) {
+                Y_ENSURE(stageInfo.Meta.TableConstInfo->Columns.contains(column), TStringBuilder{} << "Table doesn't have column: " << column);
                 auto columnType = stageInfo.Meta.TableConstInfo->Columns.at(column).Type;
                 columnShardHashV1Params.SourceTableKeyColumnTypes->push_back(columnType);
             }
@@ -1696,7 +1717,7 @@ protected:
                     }
                 }
 
-            } else if (enableShuffleElimination /* save partitioning for shuffle elimination */) {
+            } else if (enableShuffleElimination && stage.GetIsShuffleEliminated() /* save partitioning for shuffle elimination */) {
                 std::size_t stageInternalTaskId = 0;
                 columnShardHashV1Params.TaskIndexByHash = std::make_shared<TVector<ui64>>();
                 columnShardHashV1Params.TaskIndexByHash->resize(columnShardHashV1Params.SourceShardCount);
@@ -1704,7 +1725,7 @@ protected:
                 for (auto&& pair : nodeShards) {
                     const auto nodeId = pair.first;
                     auto& shardsInfo = pair.second;
-                    std::size_t maxTasksPerNode = std::min<std::size_t>(shardsInfo.size(), GetScanTasksPerNode(stageInfo, isOlapScan, nodeId));
+                    std::size_t maxTasksPerNode = std::min<std::size_t>(shardsInfo.size(), GetScanTasksPerNode(stageInfo, isOlapScan, nodeId, true));
                     std::vector<TTaskMeta> metas(maxTasksPerNode, TTaskMeta());
                     {
                         for (std::size_t i = 0; i < shardsInfo.size(); ++i) {
@@ -1760,7 +1781,7 @@ protected:
                     *TlsActivationContext,
                     NKikimrServices::KQP_EXECUTER,
                     "Stage with scan " << "[" << stageInfo.Id.TxId << ":" << stageInfo.Id.StageId << "]"
-                    << " has keys: " << columnShardHashV1Params.KeyTypesToString();
+                    << " has keys: " << columnShardHashV1Params.KeyTypesToString() << " and task count: " << stageInternalTaskId;
                 );
             } else {
                 ui32 metaId = 0;

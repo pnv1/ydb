@@ -89,6 +89,7 @@ struct TKikimrSettings: public TTestFeatureFlagsHolder<TKikimrSettings> {
     NKqp::IKqpFederatedQuerySetupFactory::TPtr FederatedQuerySetupFactory = std::make_shared<NKqp::TKqpFederatedQuerySetupFactoryNoop>();
     NMonitoring::TDynamicCounterPtr CountersRoot = MakeIntrusive<NMonitoring::TDynamicCounters>();
     std::shared_ptr<NYql::NDq::IS3ActorsFactory> S3ActorsFactory = NYql::NDq::CreateDefaultS3ActorsFactory();
+    NKikimrConfig::TImmediateControlsConfig Controls;
 
     TKikimrSettings()
     {
@@ -122,6 +123,7 @@ struct TKikimrSettings: public TTestFeatureFlagsHolder<TKikimrSettings> {
     TKikimrSettings& SetUseRealThreads(bool value) { UseRealThreads = value; return *this; };
     TKikimrSettings& SetEnableForceFollowers(bool value) { EnableForceFollowers = value; return *this; };
     TKikimrSettings& SetS3ActorsFactory(std::shared_ptr<NYql::NDq::IS3ActorsFactory> value) { S3ActorsFactory = std::move(value); return *this; };
+    TKikimrSettings& SetControls(const NKikimrConfig::TImmediateControlsConfig& value) { Controls = value; return *this; }
     TKikimrSettings& SetColumnShardAlterObjectEnabled(bool enable) {
             AppConfig.MutableColumnShardConfig()->SetAlterObjectEnabled(enable);
             return *this;
@@ -387,6 +389,8 @@ TVector<ui64> GetColumnTableShards(Tests::TServer* server, TActorId sender, cons
 void WaitForZeroSessions(const NKqp::TKqpCounters& counters);
 void WaitForZeroReadIterators(Tests::TServer& server, const TString& path);
 
+void WaitForCompaction(Tests::TServer* server, const TString& path, bool compactBorrowed = false);
+
 bool JoinOrderAndAlgosMatch(const TString& optimized, const TString& reference);
 
 struct TGetPlanParams {
@@ -403,6 +407,40 @@ NJson::TJsonValue GetDetailedJoinOrder(const TString& deserializedPlan, const TG
 NJson::TJsonValue GetJoinOrder(const TString& deserializedPlan);
 
 NJson::TJsonValue GetJoinOrderFromDetailedJoinOrder(const TString& deserializedDetailedJoinOrder);
+
+class TTestExtEnv {
+public:
+    struct TEnvSettings {
+        size_t StaticNodeCount = 1;
+        size_t DynamicNodeCount = 1;
+        TString PoolName = "hdd1";
+        bool UseRealThreads = true;
+        NKikimrConfig::TFeatureFlags FeatureFlags;
+    };
+
+    TTestExtEnv(TEnvSettings envSettings);
+    ~TTestExtEnv();
+
+    NYdb::TDriver& GetDriver() const {
+        return *Driver;
+    }
+
+    void CreateDatabase(const TString& databaseName);
+
+private:
+    TPortManager PortManager;
+
+    Tests::TServerSettings::TPtr Settings;
+    Tests::TServer::TPtr Server;
+    THolder<Tests::TClient> Client;
+    THolder<Tests::TTenants> Tenants;
+
+    TString Endpoint;
+    NYdb::TDriverConfig DriverConfig;
+    THolder<NYdb::TDriver> Driver;
+
+    TEnvSettings EnvSettings;
+};
 
 } // namespace NKqp
 } // namespace NKikimr

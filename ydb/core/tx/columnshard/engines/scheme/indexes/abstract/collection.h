@@ -17,8 +17,7 @@ private:
 public:
     TChunkIndexData(const std::shared_ptr<IIndexHeader>& header, const ui32 recordsCount)
         : Header(header)
-        , RecordsCount(recordsCount)
-    {
+        , RecordsCount(recordsCount) {
         AFL_VERIFY(RecordsCount);
         AFL_VERIFY(Header);
     }
@@ -154,7 +153,8 @@ public:
         return *result;
     }
 
-    void StartChunk(const ui32 indexId, const std::shared_ptr<IIndexMeta>& meta, const std::shared_ptr<IIndexHeader>& header, const ui32 recordsCount) {
+    void StartChunk(
+        const ui32 indexId, const std::shared_ptr<IIndexMeta>& meta, const std::shared_ptr<IIndexHeader>& header, const ui32 recordsCount) {
         auto it = Indexes.find(indexId);
         if (it == Indexes.end()) {
             it = Indexes.emplace(indexId, TIndexColumnChunked(meta)).first;
@@ -181,7 +181,7 @@ public:
         }
     }
 
-    std::shared_ptr<IIndexMeta> FindIndexFor(const NRequest::TOriginalDataAddress& address, const NArrow::NSSA::EIndexCheckOperation op) const;
+    std::shared_ptr<IIndexMeta> FindIndexFor(const NRequest::TOriginalDataAddress& address, const NArrow::NSSA::TIndexCheckOperation& op) const;
 };
 
 }   // namespace NKikimr::NOlap::NIndexes

@@ -4,9 +4,8 @@
 #include <ydb/core/base/cputime.h>
 #include <ydb/core/base/path.h>
 #include <ydb/core/kqp/executer_actor/kqp_executer.h>
+#include <ydb/core/sys_view/common/schema.h>
 #include <ydb/library/actors/core/actor_bootstrapped.h>
-
-
 
 namespace NKikimr::NKqp {
 
@@ -29,13 +28,12 @@ public:
 
     TKqpTableResolver(const TActorId& owner, ui64 txId,
         const TIntrusiveConstPtr<NACLib::TUserToken>& userToken,
-        const TVector<IKqpGateway::TPhysicalTxData>& transactions,
         TKqpTasksGraph& tasksGraph)
         : Owner(owner)
         , TxId(txId)
         , UserToken(userToken)
-        , Transactions(transactions)
-        , TasksGraph(tasksGraph) {}
+        , TasksGraph(tasksGraph)
+        , SystemViewRewrittenResolver(NSysView::CreateSystemViewRewrittenResolver()) {}
 
     void Bootstrap() {
         ResolveKeys();
@@ -149,7 +147,6 @@ private:
 
 private:
     void ResolveKeys() {
-        FillKqpTasksGraphStages(TasksGraph, Transactions);
 
         auto requestNavigate = std::make_unique<NSchemeCache::TSchemeCacheNavigate>();
         auto request = MakeHolder<NSchemeCache::TSchemeCacheRequest>();
@@ -172,6 +169,10 @@ private:
                     stageInfo.Meta.TableKind = tableInfo->TableKind;
 
                     stageInfo.Meta.ShardKey = ExtractKey(stageInfo.Meta.TableId, stageInfo.Meta.TableConstInfo, operation);
+
+                    if (SystemViewRewrittenResolver->IsSystemView(stageInfo.Meta.TableId.SysViewInfo)) {
+                        continue;
+                    }
 
                     if (stageInfo.Meta.TableKind == ETableKind::Olap) {
                         if (TableRequestIds.find(stageInfo.Meta.TableId) == TableRequestIds.end()) {
@@ -264,7 +265,6 @@ private:
     const TActorId Owner;
     const ui64 TxId;
     TIntrusiveConstPtr<NACLib::TUserToken> UserToken;
-    const TVector<IKqpGateway::TPhysicalTxData>& Transactions;
     THashMap<TTableId, TVector<TStageId>> TableRequestIds;
     THashMap<TTableId, TString> TablePathsById;
     bool NavigationFinished = false;
@@ -276,14 +276,15 @@ private:
     bool ShouldTerminate = false;
     TMaybe<ui32> GotUnexpectedEvent;
     TDuration CpuTime;
+
+    THolder<NSysView::ISystemViewResolver> SystemViewRewrittenResolver;
 };
 
 } // anonymous namespace
 
 NActors::IActor* CreateKqpTableResolver(const TActorId& owner, ui64 txId,
-    const TIntrusiveConstPtr<NACLib::TUserToken>& userToken,
-    const TVector<IKqpGateway::TPhysicalTxData>& transactions, TKqpTasksGraph& tasksGraph) {
-    return new TKqpTableResolver(owner, txId, userToken, transactions, tasksGraph);
+    const TIntrusiveConstPtr<NACLib::TUserToken>& userToken, TKqpTasksGraph& tasksGraph) {
+    return new TKqpTableResolver(owner, txId, userToken, tasksGraph);
 }
 
 } // namespace NKikimr::NKqp
