@@ -1,5 +1,7 @@
 #include "collections.h"
 
+#include <ydb/core/tx/columnshard/engines/predicate/filter.h>
+
 namespace NKikimr::NOlap::NReader::NSimple {
 
 std::shared_ptr<IDataSource> TScanWithLimitCollection::DoExtractNext() {
@@ -46,25 +48,39 @@ ui32 TScanWithLimitCollection::GetInFlightIntervalsCount(const TCompareKeyForSca
     AFL_VERIFY(from < to);
     ui32 inFlightCountLocal = 0;
     {
-        auto itUpperFinishedFrom = FinishedSources.upper_bound(from);
-        auto itUpperFinishedTo = FinishedSources.upper_bound(to);
-        for (auto&& it = itUpperFinishedFrom; it != itUpperFinishedTo; ++it) {
+        auto itFinishedFrom = FinishedSources.lower_bound(from);
+        auto itFinishedTo = FinishedSources.lower_bound(to);
+        for (auto&& it = itFinishedFrom; it != itFinishedTo; ++it) {
             ++inFlightCountLocal;
         }
     }
     {
-        auto itUpperFetchingFrom = FetchingInFlightSources.upper_bound(from);
-        auto itUpperFetchingTo = FetchingInFlightSources.upper_bound(to);
-        for (auto&& it = itUpperFetchingFrom; it != itUpperFetchingTo; ++it) {
+        auto itFetchingFrom = FetchingInFlightSources.lower_bound(from);
+        auto itFetchingTo = FetchingInFlightSources.lower_bound(to);
+        for (auto&& it = itFetchingFrom; it != itFetchingTo; ++it) {
             ++inFlightCountLocal;
         }
     }
     return inFlightCountLocal;
 }
 
-TScanWithLimitCollection::TScanWithLimitCollection(const std::shared_ptr<TSpecialReadContext>& context, std::deque<TSourceConstructor>&& sources)
+TScanWithLimitCollection::TScanWithLimitCollection(
+    const std::shared_ptr<TSpecialReadContext>& context, std::deque<TSourceConstructor>&& sources, const std::shared_ptr<IScanCursor>& cursor)
     : TBase(context)
     , Limit((ui64)Context->GetCommonContext()->GetReadMetadata()->GetLimitRobust()) {
+    if (cursor && cursor->IsInitialized()) {
+        for (auto&& i : sources) {
+            bool usage = false;
+            if (!context->GetCommonContext()->GetScanCursor()->CheckEntityIsBorder(i, usage)) {
+                continue;
+            }
+            if (usage) {
+                i.SetIsStartedByCursor();
+            }
+            break;
+        }
+    }
+
     HeapSources = std::move(sources);
     std::make_heap(HeapSources.begin(), HeapSources.end());
 }
@@ -74,6 +90,11 @@ ISourcesCollection::ISourcesCollection(const std::shared_ptr<TSpecialReadContext
     if (HasAppData() && AppDataVerified().ColumnShardConfig.HasMaxInFlightIntervalsOnRequest()) {
         MaxInFlight = AppDataVerified().ColumnShardConfig.GetMaxInFlightIntervalsOnRequest();
     }
+}
+
+std::shared_ptr<NKikimr::NOlap::IScanCursor> TNotSortedCollection::DoBuildCursor(
+    const std::shared_ptr<IDataSource>& source, const ui32 readyRecords) const {
+    return std::make_shared<TNotSortedSimpleScanCursor>(source->GetSourceId(), readyRecords);
 }
 
 }   // namespace NKikimr::NOlap::NReader::NSimple
