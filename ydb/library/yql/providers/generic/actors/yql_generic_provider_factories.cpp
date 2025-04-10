@@ -51,7 +51,9 @@ namespace NYql::NDq {
                  "GreenplumGeneric",
                  "MsSQLServerGeneric",
                  "OracleGeneric",
-                 "LoggingGeneric"}) {
+                 "LoggingGeneric",
+                 "IcebergGeneric",
+                 "RedisGeneric"}) {
             factory.RegisterSource<NGeneric::TSource>(name, readActorFactory);
             factory.RegisterLookupSource<NGeneric::TLookupSource>(name, lookupActorFactory);
         }

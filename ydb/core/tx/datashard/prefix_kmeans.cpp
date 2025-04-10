@@ -45,6 +45,7 @@ protected:
 
     TLead Lead;
 
+    ui64 TabletId = 0;
     ui64 BuildId = 0;
 
     ui64 ReadRows = 0;
@@ -101,12 +102,12 @@ protected:
     TAutoPtr<TEvDataShard::TEvPrefixKMeansResponse> Response;
 
     // FIXME: save PrefixRows as std::vector<std::pair<TSerializedCellVec, TSerializedCellVec>> to avoid parsing
-    ui32 PrefixColumns;
+    const ui32 PrefixColumns;
     TSerializedCellVec Prefix;
     TBufferData PrefixRows;
     bool IsFirstPrefixFeed = true;
     bool IsPrefixRowsValid = true;
-    
+
     bool IsExhausted = false;
 
 public:
@@ -115,7 +116,7 @@ public:
         return NKikimrServices::TActivity::LOCAL_KMEANS_SCAN_ACTOR;
     }
 
-    TPrefixKMeansScanBase(const TUserTable& table,
+    TPrefixKMeansScanBase(ui64 tabletId, const TUserTable& table,
                           const NKikimrTxDataShard::TEvPrefixKMeansRequest& request,
                           const TActorId& responseActorId,
                           TAutoPtr<TEvDataShard::TEvPrefixKMeansResponse>&& response)
@@ -127,6 +128,7 @@ public:
         , K{request.GetK()}
         , State{EState::SAMPLE}
         , UploadState{request.GetUpload()}
+        , TabletId(tabletId)
         , BuildId{request.GetId()}
         , Rng{request.GetSeed()}
         , LevelTable{request.GetLevelName()}
@@ -153,6 +155,7 @@ public:
             (*LevelTypes)[2] = {NTableIndex::NTableVectorKmeansTreeIndex::CentroidColumn, type};
         }
         PostingTypes = MakeUploadTypes(table, UploadState, embedding, data, PrefixColumns);
+        // prefix types
         {
             auto types = GetAllTypes(table);
 
@@ -207,7 +210,11 @@ public:
         }
         NYql::IssuesToMessage(UploadStatus.Issues, record.MutableIssues());
 
-        LOG_N("Finish " << Debug() << " " << Response->Record.ShortDebugString());
+        if (Response->Record.GetStatus() == NKikimrIndexBuilder::DONE) {
+            LOG_N("Done " << Debug() << " " << Response->Record.ShortDebugString());
+        } else {
+            LOG_E("Failed " << Debug() << " " << Response->Record.ShortDebugString());
+        }
         Send(ResponseActorId, Response.Release());
 
         Driver = nullptr;
@@ -222,7 +229,8 @@ public:
 
     TString Debug() const
     {
-        return TStringBuilder() << "TPrefixKMeansScan Id: " << BuildId << " Parent: " << Parent << " Child: " << Child
+        return TStringBuilder() << "TPrefixKMeansScan TabletId: " << TabletId << " Id: " << BuildId
+            << " Parent: " << Parent << " Child: " << Child
             << " K: " << K << " Clusters: " << Clusters.size()
             << " State: " << State << " Round: " << Round << " / " << MaxRounds
             << " LevelBuf size: " << LevelBuf.Size() << " PostingBuf size: " << PostingBuf.Size() << " PrefixBuf size: " << PrefixBuf.Size()
@@ -242,8 +250,8 @@ protected:
             HFunc(TEvTxUserProxy::TEvUploadRowsResponse, Handle);
             CFunc(TEvents::TSystem::Wakeup, HandleWakeup);
             default:
-                LOG_E("TPrefixKMeansScan: StateWork unexpected event type: " << ev->GetTypeRewrite() << " event: "
-                                                                            << ev->ToString() << " " << Debug());
+                LOG_E("StateWork unexpected event type: " << ev->GetTypeRewrite() 
+                    << " event: " << ev->ToString() << " " << Debug());
         }
     }
 
@@ -297,11 +305,6 @@ protected:
         LOG_N("Got error, abort scan, " << Debug() << " " << UploadStatus.ToString());
 
         Driver->Touch(EScan::Final);
-    }
-
-    ui64 GetProbability()
-    {
-        return Rng.GenRand64();
     }
 
     bool ShouldWaitUpload()
@@ -381,6 +384,11 @@ protected:
             ++pos;
         }
     }
+
+    ui64 GetProbability()
+    {
+        return Rng.GenRand64();
+    }
 };
 
 template <typename TMetric>
@@ -394,17 +402,13 @@ class TPrefixKMeansScan final: public TPrefixKMeansScanBase, private TCalculatio
     };
     std::vector<TAggregatedCluster> AggregatedClusters;
 
-
     void StartNewPrefix() {
         Parent = Child + K;
         Child = Parent + 1;
         Round = 0;
         K = InitK;
         State = EState::SAMPLE;
-        // TODO(mbkkt) Upper or Lower doesn't matter here, because we seek to (prefix, inf)
-        // so we can choose Lower if it's faster.
-        // Exact seek with Lower also possible but needs to rewrite some code in Feed
-        Lead.To(Prefix.GetCells(), NTable::ESeek::Upper);
+        Lead.To(Prefix.GetCells(), NTable::ESeek::Upper); // seek to (prefix, inf)
         Prefix = {};
         IsFirstPrefixFeed = true;
         IsPrefixRowsValid = true;
@@ -417,9 +421,9 @@ class TPrefixKMeansScan final: public TPrefixKMeansScanBase, private TCalculatio
     }
 
 public:
-    TPrefixKMeansScan(const TUserTable& table, NKikimrTxDataShard::TEvPrefixKMeansRequest& request,
+    TPrefixKMeansScan(ui64 tabletId, const TUserTable& table, NKikimrTxDataShard::TEvPrefixKMeansRequest& request,
                       const TActorId& responseActorId, TAutoPtr<TEvDataShard::TEvPrefixKMeansResponse>&& response)
-        : TPrefixKMeansScanBase{table, request, responseActorId, std::move(response)}
+        : TPrefixKMeansScanBase{tabletId, table, request, responseActorId, std::move(response)}
     {
         this->Dimensions = request.GetSettings().vector_dimension();
         LOG_I("Create " << Debug());
@@ -739,9 +743,18 @@ void TDataShard::Handle(TEvDataShard::TEvPrefixKMeansRequest::TPtr& ev, const TA
 void TDataShard::HandleSafe(TEvDataShard::TEvPrefixKMeansRequest::TPtr& ev, const TActorContext& ctx)
 {
     auto& request = ev->Get()->Record;
+    const ui64 id = request.GetId();
     TRowVersion rowVersion = GetMvccTxVersion(EMvccTxMode::ReadOnly);
+    TScanRecord::TSeqNo seqNo = {request.GetSeqNoGeneration(), request.GetSeqNoRound()};
 
-    LOG_N("Starting TPrefixKMeansScan " << request.ShortDebugString()
+    auto response = MakeHolder<TEvDataShard::TEvPrefixKMeansResponse>();
+    response->Record.SetId(id);
+    response->Record.SetTabletId(TabletID());
+    response->Record.SetRequestSeqNoGeneration(seqNo.Generation);
+    response->Record.SetRequestSeqNoRound(seqNo.Round);
+
+    LOG_N("Starting TPrefixKMeansScan TabletId: " << TabletID() 
+        << " " << request.ShortDebugString()
         << " row version " << rowVersion);
 
     // Note: it's very unlikely that we have volatile txs before this snapshot
@@ -749,38 +762,96 @@ void TDataShard::HandleSafe(TEvDataShard::TEvPrefixKMeansRequest::TPtr& ev, cons
         VolatileTxManager.AttachWaitingSnapshotEvent(rowVersion, std::unique_ptr<IEventHandle>(ev.Release()));
         return;
     }
-    const ui64 id = request.GetId();
-
-    auto response = MakeHolder<TEvDataShard::TEvPrefixKMeansResponse>();
-    response->Record.SetId(id);
-    response->Record.SetTabletId(TabletID());
-
-    TScanRecord::TSeqNo seqNo = {request.GetSeqNoGeneration(), request.GetSeqNoRound()};
-    response->Record.SetRequestSeqNoGeneration(seqNo.Generation);
-    response->Record.SetRequestSeqNoRound(seqNo.Round);
 
     auto badRequest = [&](const TString& error) {
         response->Record.SetStatus(NKikimrIndexBuilder::EBuildStatus::BAD_REQUEST);
         auto issue = response->Record.AddIssues();
         issue->set_severity(NYql::TSeverityIds::S_ERROR);
         issue->set_message(error);
-        ctx.Send(ev->Sender, std::move(response));
-        response.Reset();
+    };
+    auto trySendBadRequest = [&] {
+        if (response->Record.GetStatus() == NKikimrIndexBuilder::EBuildStatus::BAD_REQUEST) {
+            LOG_E("Rejecting TPrefixKMeansScan bad request TabletId: " << TabletID()
+                << " " << request.ShortDebugString()
+                << " with response " << response->Record.ShortDebugString());
+            ctx.Send(ev->Sender, std::move(response));
+            return true;
+        } else {
+            return false;
+        }
     };
 
-    if (const ui64 shardId = request.GetTabletId(); shardId != TabletID()) {
-        badRequest(TStringBuilder() << "Wrong shard " << shardId << " this is " << TabletID());
-        return;
+    // 1. Validating table and path existence
+    if (request.GetTabletId() != TabletID()) {
+        badRequest(TStringBuilder() << "Wrong shard " << request.GetTabletId() << " this is " << TabletID());
     }
-
+    if (!IsStateActive()) {
+        badRequest(TStringBuilder() << "Shard " << TabletID() << " is " << State << " and not ready for requests");
+    }
     const auto pathId = TPathId::FromProto(request.GetPathId());
     const auto* userTableIt = GetUserTables().FindPtr(pathId.LocalPathId);
     if (!userTableIt) {
         badRequest(TStringBuilder() << "Unknown table id: " << pathId.LocalPathId);
+    }
+    if (trySendBadRequest()) {
         return;
     }
-    Y_ENSURE(*userTableIt);
     const auto& userTable = **userTableIt;
+
+    // 2. Validating request fields
+    if (request.GetUpload() != NKikimrTxDataShard::UPLOAD_BUILD_TO_BUILD
+        && request.GetUpload() != NKikimrTxDataShard::UPLOAD_BUILD_TO_POSTING)
+    {
+        badRequest("Wrong upload");
+    }
+
+    if (request.GetK() < 2) {
+        badRequest("Should be requested partition on at least two rows");
+    }
+
+    if (!request.HasLevelName()) {
+        badRequest(TStringBuilder() << "Empty level table name");
+    }
+    if (!request.HasPostingName()) {
+        badRequest(TStringBuilder() << "Empty posting table name");
+    }
+    if (!request.HasPrefixName()) {
+        badRequest(TStringBuilder() << "Empty prefix table name");
+    }
+
+    auto tags = GetAllTags(userTable);
+    if (!tags.contains(request.GetEmbeddingColumn())) {
+        badRequest(TStringBuilder() << "Unknown embedding column: " << request.GetEmbeddingColumn());
+    }
+    for (auto dataColumn : request.GetDataColumns()) {
+        if (!tags.contains(dataColumn)) {
+            badRequest(TStringBuilder() << "Unknown data column: " << dataColumn);
+        }
+    }
+    if (request.GetPrefixColumns() <= 0) {
+        badRequest("Should be requested on at least one prefix column");
+    }
+    if (request.GetPrefixColumns() > userTable.KeyColumnIds.size()) {
+        badRequest(TStringBuilder() << "Should not be requested on more than " << userTable.KeyColumnIds.size() << " prefix columns");
+    }
+
+    if (trySendBadRequest()) {
+        return;
+    }
+
+    // 3. Validating vector index settings
+    TAutoPtr<NTable::IScan> scan;
+    auto createScan = [&]<typename T> {
+        scan = new TPrefixKMeansScan<T>{
+            TabletID(), userTable, request, ev->Sender, std::move(response),
+        };
+    };
+    MakeScan(request, createScan, badRequest);
+    if (!scan) {
+        auto sent = trySendBadRequest();
+        Y_ENSURE(sent);
+        return;
+    }
 
     if (const auto* recCard = ScanManager.Get(id)) {
         if (recCard->SeqNo == seqNo) {
@@ -792,28 +863,6 @@ void TDataShard::HandleSafe(TEvDataShard::TEvPrefixKMeansRequest::TPtr& ev, cons
             CancelScan(userTable.LocalTid, scanId);
         }
         ScanManager.Drop(id);
-    }
-
-    if (!IsStateActive()) {
-        badRequest(TStringBuilder() << "Shard " << TabletID() << " is not ready for requests");
-        return;
-    }
-
-    if (request.GetK() < 2) {
-        badRequest("Should be requested partition on at least two rows");
-        return;
-    }
-
-    TAutoPtr<NTable::IScan> scan;
-    auto createScan = [&]<typename T> {
-        scan = new TPrefixKMeansScan<T>{
-            userTable, request, ev->Sender, std::move(response),
-        };
-    };
-    MakeScan(request, createScan, badRequest);
-    if (!scan) {
-        Y_ASSERT(!response);
-        return;
     }
 
     TScanOptions scanOpts;
