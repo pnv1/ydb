@@ -9,6 +9,7 @@
 namespace NEtcd {
 
 using namespace NActors;
+using namespace NYdb::NQuery;
 
 namespace {
 
@@ -69,13 +70,16 @@ private:
         sql << "update `leases` set `updated` = CurrentUtcDatetime(`id`) where " << leasePraramName << " = `id`;" << std::endl;
         sql << "select `id`, `ttl` - unwrap(cast(CurrentUtcDatetime(`id`) - `updated` as Int64) / 1000000L) as `granted` from `leases` where " << leasePraramName << " = `id`;" << std::endl;
 
-        const auto my = this->SelfId();
-        const auto ass = NActors::TlsActivationContext->ExecutorThread.ActorSystem;
-        Stuff->Client->ExecuteQuery(sql.str(), NYdb::NQuery::TTxControl::BeginTx().CommitTx(), params.Build()).Subscribe([my, ass](const auto& future) {
-            if (const auto res = future.GetValueSync(); res.IsSuccess())
-                ass->Send(my, new TEvQueryResult(res.GetResultSets()));
-            else
-                ass->Send(my, new TEvQueryError(res.GetIssues()));
+        TQueryClient::TQueryResultFunc callback = [query = sql.str(), args = params.Build()](TQueryClient::TSession session) -> TAsyncExecuteQueryResult {
+            return session.ExecuteQuery(query, TTxControl::BeginTx().CommitTx(), args);
+        };
+        Stuff->Client->RetryQuery(std::move(callback)).Subscribe([my = this->SelfId(), stuff = TSharedStuff::TWeakPtr(Stuff)](const auto& future) {
+            if (const auto lock = stuff.lock()) {
+                if (const auto res = future.GetValueSync(); res.IsSuccess())
+                    lock->ActorSystem->Send(my, new NEtcd::TEvQueryResult(res.GetResultSets()));
+                else
+                    lock->ActorSystem->Send(my, new NEtcd::TEvQueryError(res.GetIssues()));
+            }
         });
 
         if (!Ctx->Read())
@@ -173,13 +177,16 @@ private:
         sql << "select * from `content` where " << revName << " <= `modified` and " << where.view() << " order by `modified` asc;" << std::endl;
 //      std::cout << std::endl << sql.view() << std::endl;
 
-        const auto my = this->SelfId();
-        const auto ass = NActors::TlsActivationContext->ExecutorThread.ActorSystem;
-        Stuff->Client->ExecuteQuery(sql.str(), NYdb::NQuery::TTxControl::BeginTx().CommitTx(), params.Build()).Subscribe([my, ass](const auto& future) {
-            if (const auto res = future.GetValueSync(); res.IsSuccess())
-                ass->Send(my, new TEvQueryResult(res.GetResultSets()));
-            else
-                ass->Send(my, new TEvQueryError(res.GetIssues()));
+        TQueryClient::TQueryResultFunc callback = [query = sql.str(), args = params.Build()](TQueryClient::TSession session) -> TAsyncExecuteQueryResult {
+            return session.ExecuteQuery(query, TTxControl::BeginTx().CommitTx(), args);
+        };
+        Stuff->Client->RetryQuery(std::move(callback)).Subscribe([my = this->SelfId(), stuff = TSharedStuff::TWeakPtr(Stuff)](const auto& future) {
+            if (const auto lock = stuff.lock()) {
+                if (const auto res = future.GetValueSync(); res.IsSuccess())
+                    lock->ActorSystem->Send(my, new NEtcd::TEvQueryResult(res.GetResultSets()));
+                else
+                    lock->ActorSystem->Send(my, new NEtcd::TEvQueryError(res.GetIssues()));
+            }
         });
     }
 
@@ -608,13 +615,13 @@ private:
 
         sql << "delete from `leases` where `id` not in $Leases;" << std::endl;
 
-        const auto my = this->SelfId();
-        const auto ass = NActors::TlsActivationContext->ExecutorThread.ActorSystem;
-        Stuff->Client->ExecuteQuery(sql.str(), NYdb::NQuery::TTxControl::BeginTx().CommitTx(), params.Build()).Subscribe([my, ass](const auto& future) {
-            if (const auto res = future.GetValueSync(); res.IsSuccess())
-                ass->Send(my, new TEvQueryResult(res.GetResultSets()));
-            else
-                ass->Send(my, new TEvQueryError(res.GetIssues()));
+        Stuff->Client->ExecuteQuery(sql.str(), TTxControl::BeginTx().CommitTx(), params.Build()).Subscribe([my = this->SelfId(), stuff = TSharedStuff::TWeakPtr(Stuff)](const auto& future) {
+            if (const auto lock = stuff.lock()) {
+                if (const auto res = future.GetValueSync(); res.IsSuccess())
+                    lock->ActorSystem->Send(my, new NEtcd::TEvQueryResult(res.GetResultSets()));
+                else
+                    lock->ActorSystem->Send(my, new NEtcd::TEvQueryError(res.GetIssues()));
+            }
         });
     }
 

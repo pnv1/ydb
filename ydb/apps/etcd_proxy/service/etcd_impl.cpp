@@ -12,6 +12,8 @@
 
 namespace NEtcd {
 
+using namespace NYdb::NQuery;
+
 namespace {
 
 std::string GetNameWithIndex(const std::string_view& name, const size_t* counter) {
@@ -820,13 +822,17 @@ private:
         this->MakeQueryWithParams(sql, params);
         sql << "-- " << GetRequestName() << " <<<<" << std::endl;
 //      std::cout << std::endl << sql.view() << std::endl;
-        const auto my = this->SelfId();
-        const auto ass = NActors::TlsActivationContext->ExecutorThread.ActorSystem;
-        Stuff->Client->ExecuteQuery(sql.str(), NYdb::NQuery::TTxControl::BeginTx().CommitTx(), params.Build()).Subscribe([my, ass](const auto& future) {
-            if (const auto res = future.GetValueSync(); res.IsSuccess())
-                ass->Send(my, new NEtcd::TEvQueryResult(res.GetResultSets()));
-            else
-                ass->Send(my, new NEtcd::TEvQueryError(res.GetIssues()));
+
+        TQueryClient::TQueryResultFunc callback = [query = sql.str(), args = params.Build()](TQueryClient::TSession session) -> TAsyncExecuteQueryResult {
+            return session.ExecuteQuery(query, TTxControl::BeginTx().CommitTx(), args);
+        };
+        Stuff->Client->RetryQuery(std::move(callback)).Subscribe([my = this->SelfId(), stuff = TSharedStuff::TWeakPtr(Stuff)](const auto& future) {
+            if (const auto lock = stuff.lock()) {
+                if (const auto res = future.GetValueSync(); res.IsSuccess())
+                    lock->ActorSystem->Send(my, new NEtcd::TEvQueryResult(res.GetResultSets()));
+                else
+                    lock->ActorSystem->Send(my, new NEtcd::TEvQueryError(res.GetIssues()));
+            }
         });
     }
 
