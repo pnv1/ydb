@@ -1253,6 +1253,10 @@ void TKikimrRunner::InitializeAppData(const TKikimrRunConfig& runConfig)
         AppData->WorkloadManagerConfig = runConfig.AppConfig.GetWorkloadManagerConfig();
     }
 
+    if (runConfig.AppConfig.HasQueryServiceConfig()) {
+        AppData->QueryServiceConfig = runConfig.AppConfig.GetQueryServiceConfig();
+    }
+
     // setup resource profiles
     AppData->ResourceProfiles = new TResourceProfiles;
     if (runConfig.AppConfig.GetBootstrapConfig().ResourceProfilesSize())
@@ -1829,6 +1833,17 @@ void TKikimrRunner::KikimrStart() {
             endpoint += Sprintf(":%d", server.second->GetPort());
             ActorSystem->Send(NNodeWhiteboard::MakeNodeWhiteboardServiceId(ActorSystem->NodeId),
                               new NNodeWhiteboard::TEvWhiteboard::TEvSystemStateAddEndpoint(server.first, endpoint));
+            if (ProcessMemoryInfoProvider) {
+                auto memInfo = ProcessMemoryInfoProvider->Get();
+                NKikimrWhiteboard::TSystemStateInfo systemStateInfo;
+                if (memInfo.CGroupLimit) {
+                    systemStateInfo.SetMemoryLimit(*memInfo.CGroupLimit);
+                } else if (memInfo.MemTotal) {
+                    systemStateInfo.SetMemoryLimit(*memInfo.MemTotal);
+                }
+                ActorSystem->Send(NNodeWhiteboard::MakeNodeWhiteboardServiceId(ActorSystem->NodeId),
+                              new NNodeWhiteboard::TEvWhiteboard::TEvSystemStateUpdate(systemStateInfo));
+            }
         }
     }
 
