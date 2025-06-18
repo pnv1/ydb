@@ -310,6 +310,7 @@ namespace NSchemeShardUT_Private {
     DROP_BY_PATH_ID_HELPERS(DropBackupCollection);
     GENERIC_HELPERS(BackupBackupCollection);
     GENERIC_HELPERS(BackupIncrementalBackupCollection);
+    GENERIC_HELPERS(RestoreBackupCollection);
 
     // sysview
     GENERIC_HELPERS(CreateSysView);
@@ -663,5 +664,7 @@ namespace NSchemeShardUT_Private {
 
     void WriteVectorTableRows(TTestActorRuntime& runtime, ui64 schemeShardId, ui64 txId, const TString & tablePath,
         bool withValue, ui32 shard, ui32 min, ui32 max);
+    
+    void TestCreateServerLessDb(TTestActorRuntime& runtime, TTestEnv& env, ui64& txId, ui64& tenantSchemeShard);
 
 } //NSchemeShardUT_Private

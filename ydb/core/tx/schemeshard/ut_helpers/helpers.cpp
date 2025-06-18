@@ -974,6 +974,7 @@ namespace NSchemeShardUT_Private {
     DROP_BY_PATH_ID_HELPERS(DropBackupCollection, NKikimrSchemeOp::EOperationType::ESchemeOpDropBackupCollection)
     GENERIC_HELPERS(BackupBackupCollection, NKikimrSchemeOp::EOperationType::ESchemeOpBackupBackupCollection, &NKikimrSchemeOp::TModifyScheme::MutableBackupBackupCollection)
     GENERIC_HELPERS(BackupIncrementalBackupCollection, NKikimrSchemeOp::EOperationType::ESchemeOpBackupIncrementalBackupCollection, &NKikimrSchemeOp::TModifyScheme::MutableBackupIncrementalBackupCollection)
+    GENERIC_HELPERS(RestoreBackupCollection, NKikimrSchemeOp::EOperationType::ESchemeOpRestoreBackupCollection, &NKikimrSchemeOp::TModifyScheme::MutableRestoreBackupCollection)
 
     // sysview
     GENERIC_HELPERS(CreateSysView, NKikimrSchemeOp::EOperationType::ESchemeOpCreateSysView, &NKikimrSchemeOp::TModifyScheme::MutableCreateSysView)
@@ -2732,5 +2733,63 @@ namespace NSchemeShardUT_Private {
             shard, NKikimrDataEvents::TEvWrite::TOperation::OPERATION_UPSERT,
             columnIds, std::move(matrix), true);
     };
+
+    void TestCreateServerLessDb(TTestActorRuntime& runtime, TTestEnv& env, ui64& txId, ui64& tenantSchemeShard) {
+        TestCreateExtSubDomain(runtime, ++txId, "/MyRoot", "Name: \"ResourceDB\"");
+        env.TestWaitNotification(runtime, txId);
+
+        TestAlterExtSubDomain(runtime, ++txId, "/MyRoot", R"(
+            StoragePools {
+              Name: "pool-1"
+              Kind: "pool-kind-1"
+            }
+            StoragePools {
+              Name: "pool-2"
+              Kind: "pool-kind-2"
+            }
+            PlanResolution: 50
+            Coordinators: 1
+            Mediators: 1
+            TimeCastBucketsPerMediator: 2
+            ExternalSchemeShard: true
+            Name: "ResourceDB"
+        )");
+        env.TestWaitNotification(runtime, txId);
+
+        const auto attrs = AlterUserAttrs({
+            {"cloud_id", "CLOUD_ID_VAL"},
+            {"folder_id", "FOLDER_ID_VAL"},
+            {"database_id", "DATABASE_ID_VAL"},
+        });
+        TestCreateExtSubDomain(runtime, ++txId, "/MyRoot", Sprintf(R"(
+            Name: "ServerLessDB"
+            ResourcesDomainKey {
+                SchemeShard: %lu
+                PathId: 2
+            }
+        )", TTestTxConfig::SchemeShard), attrs);
+        env.TestWaitNotification(runtime, txId);
+
+        TString alterData = R"(
+            PlanResolution: 50
+            Coordinators: 1
+            Mediators: 1
+            TimeCastBucketsPerMediator: 2
+            ExternalSchemeShard: true
+            ExternalHive: false
+            Name: "ServerLessDB"
+            StoragePools {
+                Name: "pool-1"
+                Kind: "pool-kind-1"
+            }
+        )";
+        TestAlterExtSubDomain(runtime, ++txId, "/MyRoot", alterData);
+        env.TestWaitNotification(runtime, txId);
+
+        TestDescribeResult(DescribePath(runtime, "/MyRoot/ServerLessDB"), {
+            NLs::PathExist,
+            NLs::IsExternalSubDomain("ServerLessDB"),
+            NLs::ExtractTenantSchemeshard(&tenantSchemeShard)});
+    }
 
 }
