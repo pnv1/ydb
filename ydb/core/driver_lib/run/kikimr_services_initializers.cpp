@@ -194,9 +194,6 @@
 #include <ydb/core/tx/conveyor_composite/usage/service.h>
 #include <ydb/core/tx/priorities/usage/config.h>
 #include <ydb/core/tx/priorities/usage/service.h>
-#include <ydb/core/tx/limiter/service/service.h>
-#include <ydb/core/tx/limiter/usage/config.h>
-#include <ydb/core/tx/limiter/usage/service.h>
 
 #include <ydb/core/tx/limiter/grouped_memory/usage/config.h>
 #include <ydb/core/tx/limiter/grouped_memory/usage/service.h>
@@ -236,6 +233,9 @@
 #include <ydb/library/actors/interconnect/poller_tcp.h>
 #include <ydb/library/actors/util/affinity.h>
 #include <ydb/library/actors/wilson/wilson_uploader.h>
+#include <ydb/library/slide_limiter/service/service.h>
+#include <ydb/library/slide_limiter/usage/config.h>
+#include <ydb/library/slide_limiter/usage/service.h>
 
 #include <ydb/core/graph/api/service.h>
 #include <ydb/core/graph/api/shard.h>
@@ -724,6 +724,14 @@ void TBasicServicesInitializer::InitializeServices(NActors::TActorSystemSetup* s
 
             if (nsConfig.GetType() != NKikimrConfig::TStaticNameserviceConfig::NS_EXTERNAL) {
                 Y_ABORT_UNLESS(!table->StaticNodeTable.empty());
+            }
+
+            if (Config.HasBridgeConfig()) {
+                // when we work in Bridge mode, we need special actor to ensure connectivity check between nodes
+                const TActorId actorId = MakeDistconfConnectionCheckerActorId();
+                setup->LocalServices.emplace_back(actorId, TActorSetupCmd(CreateDistconfConnectionCheckerActor(),
+                    TMailboxType::ReadAsFilled, interconnectPoolId));
+                icCommon->ConnectionCheckerActorIds.push_back(actorId);
             }
 
             ui32 maxNode = 0;
