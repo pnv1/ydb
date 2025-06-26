@@ -14,6 +14,7 @@
 #include <ydb/core/tx/data_events/events.h>
 #include <ydb/core/tx/data_events/payload_helper.h>
 #include <ydb/core/tx/schemeshard/schemeshard.h>
+#include <ydb/core/tx/schemeshard/schemeshard_private.h>
 #include <ydb/core/tx/sequenceproxy/sequenceproxy.h>
 #include <ydb/core/tx/tx_proxy/proxy.h>
 #include <ydb/core/util/pb.h>
@@ -495,6 +496,34 @@ namespace NSchemeShardUT_Private {
 
     void TestMoveIndex(TTestActorRuntime& runtime, ui64 schemeShard, ui64 txId, const TString& tablePath, const TString& src, const TString& dst, bool allowOverwrite, const TVector<TExpectedResult>& expectedResults) {
         AsyncMoveIndex(runtime, txId, tablePath, src, dst, allowOverwrite, schemeShard);
+        TestModificationResults(runtime, txId, expectedResults);
+    }
+
+    // copy and rename *MoveTable* family
+    //TODO: generalize all Move* stuff
+    TEvSchemeShard::TEvModifySchemeTransaction* MoveSequenceRequest(ui64 txId, const TString& src, const TString& dst, ui64 schemeShard, const TApplyIf& applyIf) {
+        auto tx = MakeHolder<TEvSchemeShard::TEvModifySchemeTransaction>(txId, schemeShard);
+        auto transaction = tx->Record.AddTransaction();
+        transaction->SetOperationType(NKikimrSchemeOp::EOperationType::ESchemeOpMoveSequence);
+        SetApplyIf(*transaction, applyIf);
+
+        auto descr = transaction->MutableMoveSequence();
+        descr->SetSrcPath(src);
+        descr->SetDstPath(dst);
+
+        return tx.Release();
+    }
+
+    void AsyncMoveSequence(TTestActorRuntime& runtime, ui64 txId, const TString& src, const TString& dst, ui64 schemeShard) {
+        AsyncSend(runtime, schemeShard, MoveSequenceRequest(txId, src, dst, schemeShard));
+    }
+
+    void TestMoveSequence(TTestActorRuntime& runtime, ui64 txId, const TString& src, const TString& dst, const TVector<TExpectedResult>& expectedResults) {
+        TestMoveSequence(runtime, TTestTxConfig::SchemeShard, txId, src, dst, expectedResults);
+    }
+
+    void TestMoveSequence(TTestActorRuntime& runtime, ui64 schemeShard, ui64 txId, const TString& src, const TString& dst, const TVector<TExpectedResult>& expectedResults) {
+        AsyncMoveSequence(runtime, txId, src, dst, schemeShard);
         TestModificationResults(runtime, txId, expectedResults);
     }
 
@@ -2126,6 +2155,23 @@ namespace NSchemeShardUT_Private {
         ForwardToTablet(runtime, TTestTxConfig::SchemeShard, sender, evLogin);
         TAutoPtr<IEventHandle> handle;
         auto event = runtime.GrabEdgeEvent<TEvSchemeShard::TEvLoginResult>(handle);
+        UNIT_ASSERT(event);
+        return event->Record;
+    }
+
+    NKikimrScheme::TEvLoginResult LoginFinalize(
+        TTestActorRuntime& runtime,
+        const NLogin::TLoginProvider::TLoginUserRequest& request,
+        const NLogin::TLoginProvider::TPasswordCheckResult& checkResult,
+        const TString& passwordHash,
+        const bool needUpdateCache
+    ) {
+        const auto evLoginFinalize = new NSchemeShard::TEvPrivate::TEvLoginFinalize(
+            request, checkResult, runtime.AllocateEdgeActor(), passwordHash, needUpdateCache
+        );
+        AsyncSend(runtime, TTestTxConfig::SchemeShard, evLoginFinalize);
+        TAutoPtr<IEventHandle> handle;
+        const auto event = runtime.GrabEdgeEvent<TEvSchemeShard::TEvLoginResult>(handle);
         UNIT_ASSERT(event);
         return event->Record;
     }
