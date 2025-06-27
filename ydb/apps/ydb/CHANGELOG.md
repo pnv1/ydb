@@ -1,3 +1,5 @@
+* Added `ydb workload vector select` to benchmark RPS and recall of vector index.
+* Added trivial columns completion in interactive mode.
 * Added the "ydb tools infer csv" command to generate a `CREATE TABLE` SQL query from a CSV file with data.
 * Fix inline hints
 * Added named expressions completion in interactive mode, cache schema responses.

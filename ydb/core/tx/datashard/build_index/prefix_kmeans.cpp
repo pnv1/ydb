@@ -203,8 +203,8 @@ public:
     TAutoPtr<IDestructable> Finish(EStatus status) final
     {
         auto& record = Response->Record;
-        record.SetReadRows(ReadRows);
-        record.SetReadBytes(ReadBytes);
+        record.MutableMeteringStats()->SetReadRows(ReadRows);
+        record.MutableMeteringStats()->SetReadBytes(ReadBytes);
 
         Uploader.Finish(record, status);
 
@@ -425,6 +425,7 @@ protected:
             }
             bool ok = Clusters->SetClusters(std::move(rows));
             Y_ENSURE(ok);
+            Clusters->SetRound(1);
             return false; // do KMEANS
         }
 
