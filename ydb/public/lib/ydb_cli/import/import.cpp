@@ -21,6 +21,7 @@
 #include <ydb/public/lib/ydb_cli/common/interactive.h>
 #include <ydb/public/lib/ydb_cli/common/progress_bar.h>
 #include <ydb/public/lib/ydb_cli/common/print_utils.h>
+#include <ydb/public/lib/ydb_cli/common/arena_pool.h>
 #include <ydb/public/lib/ydb_cli/commands/ydb_common.h>
 #include <ydb/public/lib/ydb_cli/dump/util/util.h>
 #include <ydb/public/lib/ydb_cli/import/cli_arrow_helpers.h>
@@ -593,6 +594,9 @@ private:
     size_t FilesPreviouslyStarted = 0;
     std::shared_ptr<TProgressFile> PreviouslyStartedProgressFile;
     std::vector<std::shared_ptr<TProgressFile>> ProgressFiles;
+    
+    // Pool for reusing protobuf Arena objects
+    std::shared_ptr<TArenaPool> ArenaPool_;
 
     static constexpr ui32 VerboseModeStepSize = 1 << 27; // 128 MB
 }; // TImpl
@@ -623,6 +627,12 @@ TImportFileClient::TImpl::TImpl(const TDriver& driver, const TClientCommand::TCo
         FileProgressPool->Start(1);
     }
     RequestsInflight = std::make_unique<std::counting_semaphore<>>(Settings.MaxInFlightRequests_);
+
+    TArenaPool::TConfig arenaConfig;
+    arenaConfig.MaxPoolSize = Settings.Threads_;
+    arenaConfig.MaxIdleTimeSeconds = 30;
+    arenaConfig.CleanupIntervalSeconds = 10;
+    ArenaPool_ = std::make_shared<TArenaPool>(arenaConfig);
 }
 
 TStatus TImportFileClient::TImpl::Import(const TVector<TString>& filePaths, const TString& dbPath) {
@@ -973,24 +983,33 @@ inline TAsyncStatus TImportFileClient::TImpl::UpsertTValueBufferParquet(
 
 inline TAsyncStatus TImportFileClient::TImpl::UpsertTValueBufferOnArena(
     const TString& dbPath, std::function<TValue(google::protobuf::Arena*)>&& buildFunc) {
-    auto arena = std::make_shared<google::protobuf::Arena>();
+    // Get arena from pool instead of creating new one
+    auto arena = std::make_shared<TPooledArena>(ArenaPool_->Acquire());
 
     // For the first attempt values are built before acquiring request inflight semaphore
-    std::optional<TValue> prebuiltValue = buildFunc(arena.get());
+    std::optional<TValue> prebuiltValue = buildFunc(arena->Get());
 
     auto retryFunc = [this, &dbPath, buildFunc = std::move(buildFunc),
-                                prebuiltValue = std::move(prebuiltValue), arena = std::move(arena)]
+                                prebuiltValue = std::move(prebuiltValue), arena]
             (NYdb::NTable::TTableClient& tableClient) mutable -> TAsyncStatus {
         auto buildTValueAndSendRequest = [this, &buildFunc, &dbPath, &tableClient, &prebuiltValue, arena]() {
             // For every retry attempt after first request build value from strings again
             // to prevent copying data in retryFunc in a happy way when there is only one request
-            TValue builtValue = prebuiltValue.has_value() ? std::move(prebuiltValue.value()) : buildFunc(arena.get());
-            prebuiltValue = std::nullopt;
+            std::unique_ptr<TValue> builtValue;
+            if (prebuiltValue.has_value()) {
+                // Sending first request with prebuilt value
+                builtValue = std::make_unique<TValue>(std::move(prebuiltValue.value()));
+                prebuiltValue = std::nullopt;
+            } else {
+                // Building value from strings again for retry
+                arena->Get()->Reset();
+                builtValue = std::make_unique<TValue>(buildFunc(arena->Get()));
+            }
 
             auto settings = UpsertSettings;
-            settings.Arena(arena.get());
+            settings.Arena(arena->Get());
             return tableClient.BulkUpsert(
-                dbPath, std::move(builtValue), settings)
+                dbPath, std::move(*builtValue), settings)
                 .Apply([](const NYdb::NTable::TAsyncBulkUpsertResult& bulkUpsertResult) {
                     NYdb::TStatus status = bulkUpsertResult.GetValueSync();
                     return NThreading::MakeFuture(status);

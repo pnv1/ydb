@@ -1,6 +1,7 @@
 LIBRARY(common)
 
 SRCS(
+    arena_pool.cpp
     aws.cpp
     cert_format_converter.cpp
     client_command_options.cpp
