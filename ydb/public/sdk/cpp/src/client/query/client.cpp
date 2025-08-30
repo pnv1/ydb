@@ -188,6 +188,43 @@ public:
         return promise.GetFuture();
     }
 
+    TAsyncStatus DeleteSession(const std::string& sessionId, const NYdb::NQuery::TDeleteSessionSettings& settings) {
+        using namespace Ydb::Query;
+        Cerr << "Session id: " << sessionId << Endl;
+        auto request = MakeRequest<Ydb::Query::DeleteSessionRequest>();
+        request.set_session_id(TStringType{sessionId});
+        Cerr << "DeleteSession request: " << request.DebugString() << Endl;
+
+        auto promise = NThreading::NewPromise<TStatus>();
+
+        auto responseCb = [promise]
+            (Ydb::Query::DeleteSessionResponse* response, TPlainStatus status) mutable {
+                try {
+                    if (response) {
+                        NYdb::NIssue::TIssues opIssues;
+                        NYdb::NIssue::IssuesFromMessage(response->issues(), opIssues);
+                        TStatus deleteSessionStatus(TPlainStatus{static_cast<EStatus>(response->status()), std::move(opIssues),
+                            status.Endpoint, std::move(status.Metadata)});
+
+                        promise.SetValue(std::move(deleteSessionStatus));
+                    } else {
+                        promise.SetValue(TStatus(std::move(status)));
+                    }
+                } catch (...) {
+                    promise.SetException(std::current_exception());
+                }
+            };
+
+        Connections_->Run<V1::QueryService, DeleteSessionRequest, DeleteSessionResponse>(
+            std::move(request),
+            responseCb,
+            &V1::QueryService::Stub::AsyncDeleteSession,
+            DbDriverState_,
+            TRpcRequestSettings::Make(settings));
+
+        return promise.GetFuture();
+    }
+
     TAsyncCommitTransactionResult CommitTransaction(const std::string& txId, const NYdb::NQuery::TCommitTxSettings& settings, const TSession& session) {
         using namespace Ydb::Query;
         auto request = MakeRequest<Ydb::Query::CommitTransactionRequest>();
@@ -597,6 +634,11 @@ TAsyncFetchScriptResultsResult TQueryClient::FetchScriptResults(const NKikimr::N
 TAsyncCreateSessionResult TQueryClient::GetSession(const TCreateSessionSettings& settings)
 {
     return Impl_->GetSession(settings);
+}
+
+TAsyncStatus TQueryClient::DeleteSession(const std::string& sessionId, const TDeleteSessionSettings& settings)
+{
+    return Impl_->DeleteSession(sessionId, settings);
 }
 
 int64_t TQueryClient::GetActiveSessionCount() const {
