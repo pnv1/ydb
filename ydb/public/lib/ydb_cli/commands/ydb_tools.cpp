@@ -28,6 +28,7 @@ TCommandTools::TCommandTools()
     AddCommand(std::make_unique<TCommandRename>());
     AddCommand(std::make_unique<TCommandPgConvert>());
     AddCommand(std::make_unique<TCommandToolsInfer>());
+    AddCommand(std::make_unique<TCommandDeleteSession>());
 }
 
 TToolsCommand::TToolsCommand(const TString& name, const std::initializer_list<TString>& aliases, const TString& description)
@@ -487,6 +488,38 @@ int TCommandPgConvert::Run(TConfig& config) {
         stream.MovePointer();
         parser.WritePgDump(stream);
     }
+    return EXIT_SUCCESS;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//  Delete Session
+////////////////////////////////////////////////////////////////////////////////
+
+TCommandDeleteSession::TCommandDeleteSession()
+    : TYdbOperationCommand("delete-session", {}, "Copy table(s)")
+{
+}
+
+void TCommandDeleteSession::Config(TConfig& config) {
+    TYdbOperationCommand::Config(config);
+
+    config.SetFreeArgsNum(0);
+
+    config.Opts->AddLongOption("id", "Session ID to delete")
+        .Required()
+        .RequiredArgument("ID")
+        .StoreResult(&SessionId);
+}
+
+int TCommandDeleteSession::Run(TConfig& config) {
+    auto driver = CreateDriver(config);
+    auto queryClient = NQuery::TQueryClient(driver);
+    NStatusHelpers::ThrowOnErrorOrPrintIssues(
+        queryClient.DeleteSession(
+            SessionId,
+            FillSettings(NQuery::TDeleteSessionSettings())
+        ).GetValueSync()
+    );
     return EXIT_SUCCESS;
 }
 
