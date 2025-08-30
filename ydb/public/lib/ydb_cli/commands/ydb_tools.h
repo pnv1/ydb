@@ -126,5 +126,17 @@ private:
     bool IgnoreUnsupported = false;
 };
 
+class TCommandDeleteSession : public TYdbOperationCommand {
+public:
+    TCommandDeleteSession();
+    virtual void Config(TConfig& config) override;
+    virtual int Run(TConfig& config) override;
+
+private:
+
+    TString SessionId;
+    TString DatabaseName;
+};
+
 }
 }
