@@ -282,15 +282,18 @@ jobs:
             '### Description for reviewers' \
             "Automated release PR for CLI version ${{ needs.prepare-release.outputs.new-version }}"
 
-          PR_NUMBER=$(gh pr create \
+          PR_URL=$(gh pr create \
             --title "$PR_TITLE" \
             --body "$PR_BODY" \
             --head "${{ needs.prepare-release.outputs.branch-name }}" \
             --base main \
             --repo ${{ github.repository }})
 
+          # Extract PR number from URL (e.g., "https://github.com/user/repo/pull/12" -> "12")
+          PR_NUMBER=$(basename "$PR_URL")
+          
           echo "Created PR #$PR_NUMBER"
-          echo "PR URL: $(gh pr view "$PR_NUMBER" --json url --jq '.url')"
+          echo "PR URL: $PR_URL"
           echo "pr-number=$PR_NUMBER" >> $GITHUB_OUTPUT
           
           if gh pr merge "$PR_NUMBER" --merge --auto; then
@@ -329,7 +332,7 @@ jobs:
           done
 
           # Check if we timed out
-          PR_STATE=$(gh pr view "$PR_NUMBER" --json state,merged --jq '.state + ":" + (.merged | tostring)')
+          PR_STATE=$(gh pr view "$PR_NUMBER" --json state,mergedAt --jq '.state + ":" + (.mergedAt != null | tostring)')
           if [[ "$PR_STATE" != "MERGED:true" ]]; then
             echo "ERROR: PR was not merged after 2 hours. Current state: $PR_STATE"
             echo "Please check the PR status and approve if needed."
