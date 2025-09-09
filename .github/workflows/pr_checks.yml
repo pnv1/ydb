@@ -1,0 +1,42 @@
+name: Pull Request Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  # Fake CI checks to simulate main repository  
+  build-check:
+    name: Build Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Simulate build process
+        run: |
+          echo "Running build check..."
+          sleep 30  # 30 seconds
+          echo "Build check passed ✅"
+  
+  lint-check:
+    name: Lint Check  
+    runs-on: ubuntu-latest
+    steps:
+        
+      - name: Simulate linting
+        run: |
+          echo "Running lint check..."
+          sleep 45  # 45 seconds
+          echo "Lint check passed ✅"
+
+  test-check:
+    name: Test Check
+    runs-on: ubuntu-latest  
+    steps:
+        
+      - name: Simulate testing
+        run: |
+          echo "Running tests..."
+          sleep 60  # 60 seconds
+          echo "All tests passed ✅"
