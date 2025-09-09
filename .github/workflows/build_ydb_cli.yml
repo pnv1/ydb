@@ -205,17 +205,17 @@ jobs:
       run:
         shell: ${{ matrix.shell }}
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        ref: ${{ needs.prepare-release.outputs.branch-name }}
+    - name: Simulate checkout (TESTING MODE)
+      run: |
+        echo "Simulating checkout of ${{ needs.prepare-release.outputs.branch-name }}"
+        echo "Skipping actual checkout to speed up testing"
 
     - name: Print debug information (TESTING MODE)
       run: |
         echo "=== TESTING MODE - BUILD SIMULATION ==="
         echo "Platform: ${{ matrix.os }}"
         echo "Binary: ${{ matrix.binary }}"
-        echo "YDB CLI version: $(cat ydb/apps/ydb/version.txt)"
+        echo "YDB CLI version: ${{ needs.prepare-release.outputs.new-version }} (from prepare-release)"
         echo "Simulating build process..."
         
     - name: Simulate build process
@@ -285,7 +285,6 @@ jobs:
             --body "$PR_BODY" \
             --head "${{ needs.prepare-release.outputs.branch-name }}" \
             --base main \
-            --label "automated-release" \
             --repo ${{ github.repository }})
 
           echo "Created PR #$PR_NUMBER"
