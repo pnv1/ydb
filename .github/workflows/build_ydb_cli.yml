@@ -266,6 +266,7 @@ jobs:
         uses: ./.github/actions/configure_git
 
       - name: Create and auto-merge PR
+        id: create-pr
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -290,6 +291,8 @@ jobs:
 
           echo "Created PR #$PR_NUMBER"
           echo "PR URL: $(gh pr view "$PR_NUMBER" --json url --jq '.url')"
+          echo "pr-number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          
           if gh pr merge "$PR_NUMBER" --merge --auto; then
             echo "Auto-merge enabled for PR #$PR_NUMBER"
           else
@@ -301,7 +304,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "Waiting for PR to be merged (tests may take 30-60+ minutes)..."
+          PR_NUMBER="${{ steps.create-pr.outputs.pr-number }}"
+          echo "Waiting for PR #$PR_NUMBER to be merged (tests may take 30-60+ minutes)..."
 
           # Wait up to 2 hours, checking every 5 minutes  
           for i in {1..24}; do  # 24 * 5 minutes = 2 hours
