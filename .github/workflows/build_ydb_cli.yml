@@ -293,11 +293,11 @@ jobs:
           gh pr merge "$PR_NUMBER" --merge --auto
           echo "Enabled auto-merge for PR #$PR_NUMBER"
 
-      - name: Wait for PR merge and create tag
+      - name: Wait for PR merge
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "Waiting for PR to be merged..."
+          echo "Waiting for PR to be merged (tests may take 30-60+ minutes)..."
 
           # Wait up to 2 hours, checking every 5 minutes  
           for i in {1..24}; do  # 24 * 5 minutes = 2 hours
@@ -325,10 +325,13 @@ jobs:
           PR_STATE=$(gh pr view "$PR_NUMBER" --json state,merged --jq '.state + ":" + (.merged | tostring)')
           if [[ "$PR_STATE" != "MERGED:true" ]]; then
             echo "ERROR: PR was not merged after 2 hours. Current state: $PR_STATE"
+            echo "Please check the PR status and approve if needed."
             echo "PR URL: $(gh pr view "$PR_NUMBER" --json url --jq '.url')"
             exit 1
           fi
 
+      - name: Create release tag
+        run: |
           # Create tag on release branch (exact state that CLI was built in)
           git fetch origin "${{ needs.prepare-release.outputs.branch-name }}"
           git checkout "${{ needs.prepare-release.outputs.branch-name }}"
