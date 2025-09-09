@@ -289,11 +289,14 @@ jobs:
             --repo ${{ github.repository }})
 
           echo "Created PR #$PR_NUMBER"
-
-          # Enable auto-merge
-          gh pr merge "$PR_NUMBER" --merge --auto
-          echo "Enabled auto-merge for PR #$PR_NUMBER"
-
+          echo "PR URL: $(gh pr view "$PR_NUMBER" --json url --jq '.url')"
+          if gh pr merge "$PR_NUMBER" --merge --auto; then
+            echo "Auto-merge enabled for PR #$PR_NUMBER"
+          else
+            echo "Auto-merge failed - branch protection rules required"
+            echo "Please merge PR manually: $(gh pr view "$PR_NUMBER" --json url --jq '.url')"
+            exit 1
+          fi
       - name: Wait for PR merge
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -303,8 +306,7 @@ jobs:
           # Wait up to 2 hours, checking every 5 minutes  
           for i in {1..24}; do  # 24 * 5 minutes = 2 hours
             # Check if PR is merged via GitHub API
-            PR_STATE=$(gh pr view "$PR_NUMBER" --json state,merged --jq '.state + ":" + (.merged | tostring)')
-            
+            PR_STATE=$(gh pr view "$PR_NUMBER" --json state,mergedAt --jq '.state + ":" + (.mergedAt != null | tostring)')
             if [[ "$PR_STATE" == "MERGED:true" ]]; then
               echo "PR merged successfully"
               break
