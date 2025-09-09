@@ -268,7 +268,7 @@ jobs:
       - name: Create and auto-merge PR
         id: create-pr
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PERSONAL_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           # Create PR from release branch to main
           PR_TITLE="YDB CLI release ${{ needs.prepare-release.outputs.new-version }}"
@@ -302,7 +302,7 @@ jobs:
           fi
       - name: Wait for PR merge
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PERSONAL_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           PR_NUMBER="${{ steps.create-pr.outputs.pr-number }}"
           echo "Waiting for PR #$PR_NUMBER to be merged (tests may take 30-60+ minutes)..."
