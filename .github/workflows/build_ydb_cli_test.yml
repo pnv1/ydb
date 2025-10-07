@@ -1,0 +1,82 @@
+name: Build-YDB-CLI-Test
+run-name: Build YDB CLI Test
+
+permissions:
+  contents: write
+  pull-requests: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      version-change:
+        description: "PATCH for bug fixes, MINOR for new features"
+        required: true
+        type: choice
+        options:
+          - PATCH
+          - MINOR
+          - MAJOR
+        default: PATCH
+      commit_sha:
+        description: Do not change this unless you know what you are doing
+        type: string
+        default: ""
+      build-linux-amd:
+        type: boolean
+        description: Build YDB CLI for Linux (amd64)
+        default: true
+      build-linux-arm:
+        type: boolean
+        description: Build YDB CLI for Linux (arm64)
+        default: true
+      build-darwin-amd:
+        type: boolean
+        description: Build YDB CLI for MacOS (amd64)
+        default: true
+      build-darwin-arm:
+        type: boolean
+        description: Build YDB CLI for MacOS (arm64)
+        default: true
+      build-windows-amd:
+        type: boolean
+        description: Build YDB CLI for Windows (amd64)
+        default: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  test-build:
+    name: Test Build Process
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print input parameters
+        run: |
+          echo "=== YDB CLI Test Build Parameters ==="
+          echo "Version change: ${{ inputs.version-change }}"
+          echo "Commit SHA: ${{ inputs.commit_sha }}"
+          echo "Build platforms:"
+          echo "  - Linux AMD64: ${{ inputs.build-linux-amd }}"
+          echo "  - Linux ARM64: ${{ inputs.build-linux-arm }}"
+          echo "  - macOS AMD64: ${{ inputs.build-darwin-amd }}"
+          echo "  - macOS ARM64: ${{ inputs.build-darwin-arm }}"
+          echo "  - Windows AMD64: ${{ inputs.build-windows-amd }}"
+          echo "====================================="
+
+      - name: Simulate build process
+        run: |
+          echo "🚀 Starting simulated build process..."
+          echo "📦 Preparing build environment..."
+          sleep 10
+          echo "🔨 Building binaries for selected platforms..."
+          sleep 20
+          echo "📤 Uploading to S3..."
+          sleep 10
+          echo "✅ Build process completed successfully!"
+
+      - name: Wait for 1 minute
+        run: |
+          echo "⏳ Waiting 1 minute to simulate real build time..."
+          sleep 30
+          echo "✅ Test workflow completed successfully!"
