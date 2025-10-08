@@ -50,6 +50,8 @@ jobs:
   test-build:
     name: Test Build Process
     runs-on: ubuntu-latest
+    outputs:
+      cli-version: ${{ steps.set-version.outputs.cli-version }}
     steps:
       - name: Print input parameters
         run: |
@@ -64,10 +66,32 @@ jobs:
           echo "  - Windows AMD64: ${{ inputs.build-windows-amd }}"
           echo "====================================="
 
+      - name: Set CLI version
+        id: set-version
+        run: |
+          # For testing, use fixed version
+          # In production, this would be calculated from inputs.version-change and current version
+          CLI_VERSION="2.27.0"
+          echo "cli-version=$CLI_VERSION" >> $GITHUB_OUTPUT
+          echo "CLI version set to: $CLI_VERSION"
+
+      - name: Create version artifact
+        run: |
+          echo "${{ steps.set-version.outputs.cli-version }}" > cli-version.txt
+          echo "Created cli-version.txt with version: ${{ steps.set-version.outputs.cli-version }}"
+
+      - name: Upload version artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-version
+          path: cli-version.txt
+          retention-days: 1
+
       - name: Simulate build process
         run: |
           echo "🚀 Starting simulated build process..."
           echo "📦 Preparing build environment..."
+          echo "🔧 CLI Version: ${{ steps.set-version.outputs.cli-version }}"
           sleep 10
           echo "🔨 Building binaries for selected platforms..."
           sleep 20
