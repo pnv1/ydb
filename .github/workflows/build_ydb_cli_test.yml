@@ -21,10 +21,6 @@ on:
         description: Do not change this unless you know what you are doing
         type: string
         default: ""
-      workflow_uuid:
-        description: "Unique identifier for tracking this workflow run"
-        type: string
-        required: true
       build-linux-amd:
         type: boolean
         description: Build YDB CLI for Linux (amd64)
@@ -57,14 +53,12 @@ jobs:
     outputs:
       branch-name: ${{ steps.create-branch.outputs.branch-name }}
       new-version: ${{ steps.update-version.outputs.new-version }}
-      workflow-uuid: ${{ inputs.workflow_uuid }}
     steps:
       - name: Print input parameters
         run: |
           echo "=== YDB CLI Test Build Parameters ==="
           echo "Version change: ${{ inputs.version-change }}"
           echo "Commit SHA: ${{ inputs.commit_sha }}"
-          echo "Workflow UUID: ${{ inputs.workflow_uuid }}"
           echo "Build platforms:"
           echo "  - Linux AMD64: ${{ inputs.build-linux-amd }}"
           echo "  - Linux ARM64: ${{ inputs.build-linux-arm }}"
@@ -81,6 +75,9 @@ jobs:
           CLI_VERSION="2.27.0"
           echo "new-version=$CLI_VERSION" >> $GITHUB_OUTPUT
           echo "CLI version set to: $CLI_VERSION"
+          
+          # Create version file for artifact
+          echo "$CLI_VERSION" > cli_version.txt
 
       - name: Create release branch
         id: create-branch
@@ -89,6 +86,12 @@ jobs:
           BRANCH_NAME="cli-release/${{ steps.update-version.outputs.new-version }}"
           echo "branch-name=$BRANCH_NAME" >> $GITHUB_OUTPUT
           echo "Created branch: $BRANCH_NAME"
+
+      - name: Upload CLI version artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-version
+          path: cli_version.txt
 
   test-build:
     name: Test Build Process
@@ -100,7 +103,6 @@ jobs:
           echo "🚀 Starting simulated build process..."
           echo "📦 Preparing build environment..."
           echo "🔧 CLI Version: ${{ needs.prepare-release.outputs.new-version }}"
-          echo "🆔 Workflow UUID: ${{ needs.prepare-release.outputs.workflow-uuid }}"
           sleep 10
           echo "🔨 Building binaries for selected platforms..."
           sleep 20
