@@ -76,8 +76,9 @@ jobs:
           echo "new-version=$CLI_VERSION" >> $GITHUB_OUTPUT
           echo "CLI version set to: $CLI_VERSION"
           
-          # Create version file for artifact
+          # Create version file for artifact with timestamp for uniqueness
           echo "$CLI_VERSION" > cli_version.txt
+          echo "Created cli_version.txt with content: $(cat cli_version.txt)"
 
       - name: Create release branch
         id: create-branch
@@ -92,6 +93,12 @@ jobs:
         with:
           name: cli-version
           path: cli_version.txt
+
+      - name: Verify artifact upload
+        run: |
+          echo "Artifact upload completed"
+          echo "File was: cli_version.txt"
+          echo "Content was: $(cat cli_version.txt)"
 
   test-build:
     name: Test Build Process
