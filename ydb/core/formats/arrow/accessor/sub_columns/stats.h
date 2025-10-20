@@ -6,9 +6,9 @@
 #include <ydb/library/accessor/accessor.h>
 #include <ydb/library/actors/core/log.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/array/array_binary.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/array/builder_base.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/record_batch.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/array/array_binary.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/array/builder_base.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/record_batch.h>
 #include <util/generic/string.h>
 
 namespace NKikimr::NArrow::NAccessor::NSubColumns {
@@ -17,11 +17,11 @@ class TSplittedColumns;
 
 class TDictStats {
 private:
-    std::shared_ptr<arrow::RecordBatch> Original;
-    std::shared_ptr<arrow::StringArray> DataNames;
-    std::shared_ptr<arrow::UInt32Array> DataRecordsCount;
-    std::shared_ptr<arrow::UInt32Array> DataSize;
-    std::shared_ptr<arrow::UInt8Array> AccessorType;
+    std::shared_ptr<arrow20::RecordBatch> Original;
+    std::shared_ptr<arrow20::StringArray> DataNames;
+    std::shared_ptr<arrow20::UInt32Array> DataRecordsCount;
+    std::shared_ptr<arrow20::UInt32Array> DataSize;
+    std::shared_ptr<arrow20::UInt8Array> AccessorType;
 
 public:
     ui32 GetFilledValuesCount() const {
@@ -124,11 +124,11 @@ public:
 
     class TBuilder: TNonCopyable {
     private:
-        std::vector<std::unique_ptr<arrow::ArrayBuilder>> Builders;
-        arrow::StringBuilder* Names;
-        arrow::UInt32Builder* Records;
-        arrow::UInt32Builder* DataSize;
-        arrow::UInt8Builder* AccessorType;
+        std::vector<std::unique_ptr<arrow20::ArrayBuilder>> Builders;
+        arrow20::StringBuilder* Names;
+        arrow20::UInt32Builder* Records;
+        arrow20::UInt32Builder* DataSize;
+        arrow20::UInt8Builder* AccessorType;
 
         std::optional<TString> LastKeyName;
         ui32 RecordsCount = 0;
@@ -144,19 +144,19 @@ public:
         return TBuilder();
     }
 
-    std::shared_ptr<arrow::Schema> BuildColumnsSchema() const {
-        arrow::FieldVector fields;
+    std::shared_ptr<arrow20::Schema> BuildColumnsSchema() const {
+        arrow20::FieldVector fields;
         for (ui32 i = 0; i < DataNames->length(); ++i) {
             const auto view = DataNames->GetView(i);
-            fields.emplace_back(std::make_shared<arrow::Field>(std::string(view.data(), view.size()), arrow::utf8()));
+            fields.emplace_back(std::make_shared<arrow20::Field>(std::string(view.data(), view.size()), arrow20::utf8()));
         }
-        return std::make_shared<arrow::Schema>(fields);
+        return std::make_shared<arrow20::Schema>(fields);
     }
 
-    std::shared_ptr<arrow::Field> GetField(const ui32 index) const {
+    std::shared_ptr<arrow20::Field> GetField(const ui32 index) const {
         AFL_VERIFY(index < DataNames->length());
         auto name = DataNames->GetView(index);
-        return std::make_shared<arrow::Field>(std::string(name.data(), name.size()), arrow::utf8());
+        return std::make_shared<arrow20::Field>(std::string(name.data(), name.size()), arrow20::utf8());
     }
 
     TRTStats GetRTStats(const ui32 index) const {
@@ -179,16 +179,16 @@ public:
     ui32 GetColumnRecordsCount(const ui32 index) const;
     ui32 GetColumnSize(const ui32 index) const;
 
-    static std::shared_ptr<arrow::Schema> GetStatsSchema() {
-        static arrow::FieldVector fields = { std::make_shared<arrow::Field>("name", arrow::utf8()),
-            std::make_shared<arrow::Field>("count", arrow::uint32()), std::make_shared<arrow::Field>("size", arrow::uint32()),
-            std::make_shared<arrow::Field>("accessor_type", arrow::uint8()) };
-        static std::shared_ptr<arrow::Schema> result = std::make_shared<arrow::Schema>(fields);
+    static std::shared_ptr<arrow20::Schema> GetStatsSchema() {
+        static arrow20::FieldVector fields = { std::make_shared<arrow20::Field>("name", arrow20::utf8()),
+            std::make_shared<arrow20::Field>("count", arrow20::uint32()), std::make_shared<arrow20::Field>("size", arrow20::uint32()),
+            std::make_shared<arrow20::Field>("accessor_type", arrow20::uint8()) };
+        static std::shared_ptr<arrow20::Schema> result = std::make_shared<arrow20::Schema>(fields);
         return result;
     }
 
     bool IsSparsed(const ui32 columnIndex, const ui32 recordsCount, const TSettings& settings) const;
-    TDictStats(const std::shared_ptr<arrow::RecordBatch>& original);
+    TDictStats(const std::shared_ptr<arrow20::RecordBatch>& original);
 };
 
 class TSplittedColumns {

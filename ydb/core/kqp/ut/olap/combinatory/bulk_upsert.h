@@ -5,14 +5,14 @@
 
 #include <ydb/library/conclusion/status.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/record_batch.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/record_batch.h>
 
 namespace NKikimr::NKqp {
 
 class TBulkUpsertCommand: public ICommand {
 private:
     TString TableName;
-    std::shared_ptr<arrow::RecordBatch> ArrowBatch;
+    std::shared_ptr<arrow20::RecordBatch> ArrowBatch;
     Ydb::StatusIds_StatusCode ExpectedCode = Ydb::StatusIds::SUCCESS;
     ui32 PartsCount = 1;
 

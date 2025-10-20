@@ -12,8 +12,8 @@ namespace NKikimr::NArrow::NAccessor {
 class TDictionaryArray: public IChunkedArray {
 private:
     using TBase = IChunkedArray;
-    std::shared_ptr<arrow::Array> ArrayVariants;
-    std::shared_ptr<arrow::Array> ArrayRecords;
+    std::shared_ptr<arrow20::Array> ArrayVariants;
+    std::shared_ptr<arrow20::Array> ArrayRecords;
 
     virtual void DoVisitValues(const TValuesSimpleVisitor& visitor) const override {
         visitor(ArrayVariants);
@@ -27,10 +27,10 @@ protected:
     }
 
     virtual TLocalDataAddress DoGetLocalData(const std::optional<TCommonChunkAddress>& /*chunkCurrent*/, const ui64 /*position*/) const override;
-    virtual std::shared_ptr<arrow::Scalar> DoGetScalar(const ui32 index) const override {
+    virtual std::shared_ptr<arrow20::Scalar> DoGetScalar(const ui32 index) const override {
         return NArrow::TStatusValidator::GetValid(ArrayVariants->GetScalar(GetIndexImpl(index)));
     }
-    virtual std::shared_ptr<arrow::Scalar> DoGetMaxScalar() const override;
+    virtual std::shared_ptr<arrow20::Scalar> DoGetMaxScalar() const override;
     virtual std::shared_ptr<IChunkedArray> DoISlice(const ui32 offset, const ui32 count) const override;
     virtual ui32 DoGetNullsCount() const override {
         return ArrayRecords->null_count();
@@ -39,7 +39,7 @@ protected:
         return NArrow::GetArrayDataSize(ArrayVariants) + NArrow::GetArrayDataSize(ArrayRecords);
     }
 
-    virtual std::optional<bool> DoCheckOneValueAccessor(std::shared_ptr<arrow::Scalar>& value) const override {
+    virtual std::optional<bool> DoCheckOneValueAccessor(std::shared_ptr<arrow20::Scalar>& value) const override {
         if (ArrayVariants->length() == 1) {
             value = NArrow::TStatusValidator::GetValid(ArrayVariants->GetScalar(0));
             return true;
@@ -57,15 +57,15 @@ public:
         ArrayRecords = NArrow::ReallocateArray(ArrayRecords);
     }
 
-    const std::shared_ptr<arrow::Array>& GetVariants() const {
+    const std::shared_ptr<arrow20::Array>& GetVariants() const {
         return ArrayVariants;
     }
 
-    const std::shared_ptr<arrow::Array>& GetRecords() const {
+    const std::shared_ptr<arrow20::Array>& GetRecords() const {
         return ArrayRecords;
     }
 
-    TDictionaryArray(const std::shared_ptr<arrow::Array>& variants, const std::shared_ptr<arrow::Array>& records)
+    TDictionaryArray(const std::shared_ptr<arrow20::Array>& variants, const std::shared_ptr<arrow20::Array>& records)
         : TBase(TValidator::CheckNotNull(records)->length(), EType::Dictionary, variants->type())
         , ArrayVariants(variants)
         , ArrayRecords(records) {

@@ -5,7 +5,7 @@
 
 #include <ydb/library/accessor/accessor.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/scalar.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/scalar.h>
 
 namespace NKikimr::NOlap {
 
@@ -19,7 +19,7 @@ class TAssembleBlobInfo {
 private:
     YDB_READONLY_DEF(std::optional<ui32>, ExpectedRowsCount);
     ui32 DefaultRowsCount = 0;
-    std::shared_ptr<arrow::Scalar> DefaultValue;
+    std::shared_ptr<arrow20::Scalar> DefaultValue;
     TString Data;
 
 public:
@@ -36,7 +36,7 @@ public:
         }
     }
 
-    TAssembleBlobInfo(const ui32 rowsCount, const std::shared_ptr<arrow::Scalar>& defValue)
+    TAssembleBlobInfo(const ui32 rowsCount, const std::shared_ptr<arrow20::Scalar>& defValue)
         : DefaultRowsCount(rowsCount)
         , DefaultValue(defValue) {
         AFL_VERIFY(DefaultRowsCount);
@@ -81,7 +81,7 @@ public:
         return Loader->GetField()->name();
     }
 
-    std::shared_ptr<arrow::Field> GetField() const {
+    std::shared_ptr<arrow20::Field> GetField() const {
         return Loader->GetField();
     }
 
@@ -104,9 +104,9 @@ public:
     struct TAssembleOptions {
         std::optional<std::set<ui32>> IncludedColumnIds;
         std::optional<std::set<ui32>> ExcludedColumnIds;
-        std::map<ui32, std::shared_ptr<arrow::Scalar>> ConstantColumnIds;
+        std::map<ui32, std::shared_ptr<arrow20::Scalar>> ConstantColumnIds;
 
-        bool IsConstantColumn(const ui32 columnId, std::shared_ptr<arrow::Scalar>& scalar) const {
+        bool IsConstantColumn(const ui32 columnId, std::shared_ptr<arrow20::Scalar>& scalar) const {
             if (ConstantColumnIds.empty()) {
                 return false;
             }
@@ -129,7 +129,7 @@ public:
         }
     };
 
-    std::shared_ptr<arrow::Field> GetFieldVerified(const ui32 columnId) const {
+    std::shared_ptr<arrow20::Field> GetFieldVerified(const ui32 columnId) const {
         for (auto&& i : Columns) {
             if (i.GetColumnId() == columnId) {
                 return i.GetField();
@@ -179,7 +179,7 @@ public:
         }
     }
 
-    const std::shared_ptr<arrow::Field>& GetField() const {
+    const std::shared_ptr<arrow20::Field>& GetField() const {
         return ResultLoader->GetField();
     }
 

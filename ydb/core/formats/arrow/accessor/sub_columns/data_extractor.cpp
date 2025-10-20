@@ -22,10 +22,10 @@ public:
     }
 };
 
-TConclusionStatus TJsonScanExtractor::DoAddDataToBuilders(const std::shared_ptr<arrow::Array>& sourceArray, TDataBuilder& dataBuilder) const {
-    auto arr = std::static_pointer_cast<arrow::BinaryArray>(sourceArray);
+TConclusionStatus TJsonScanExtractor::DoAddDataToBuilders(const std::shared_ptr<arrow20::Array>& sourceArray, TDataBuilder& dataBuilder) const {
+    auto arr = std::static_pointer_cast<arrow20::BinaryArray>(sourceArray);
     std::optional<bool> isBinaryJson;
-    if (arr->type()->id() == arrow::utf8()->id()) {
+    if (arr->type()->id() == arrow20::utf8()->id()) {
         isBinaryJson = false;
     }
     if (!arr->length()) {
@@ -96,7 +96,7 @@ TConclusionStatus TJsonScanExtractor::DoAddDataToBuilders(const std::shared_ptr<
     return TConclusionStatus::Success();
 }
 
-TConclusionStatus IDataAdapter::AddDataToBuilders(const std::shared_ptr<arrow::Array>& sourceArray, TDataBuilder& dataBuilder) const noexcept {
+TConclusionStatus IDataAdapter::AddDataToBuilders(const std::shared_ptr<arrow20::Array>& sourceArray, TDataBuilder& dataBuilder) const noexcept {
     try {
         return DoAddDataToBuilders(sourceArray, dataBuilder);
     } catch (...) {

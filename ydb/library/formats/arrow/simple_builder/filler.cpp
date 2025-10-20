@@ -15,9 +15,9 @@ TStringPoolFiller::TStringPoolFiller(const ui32 poolSize, const ui32 strLen, con
     }
 }
 
-arrow20::util::string_view TStringPoolFiller::GetValue(const ui32 idx) const {
+std::string_view TStringPoolFiller::GetValue(const ui32 idx) const {
     const TString& str = Data[(2 + 7 * idx) % Data.size()];
-    return arrow20::util::string_view(str.data(), str.size());
+    return std::string_view(str.data(), str.size());
 }
 
 }   // namespace NKikimr::NArrow::NConstruction

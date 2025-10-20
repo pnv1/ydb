@@ -30,7 +30,7 @@ private:
     std::optional<TActorId> ScanActorId;
 
     EStage Stage = EStage::Initialization;
-    std::shared_ptr<arrow::RecordBatch> CurrentData;
+    std::shared_ptr<arrow20::RecordBatch> CurrentData;
     TString CurrentDataBlob;
     std::shared_ptr<NExport::TSession> ExportSession;
     static inline const ui64 FreeSpace = ((ui64)8) << 20;

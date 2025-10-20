@@ -7,7 +7,7 @@
 #include <ydb/core/protos/data_events.pb.h>
 #include <ydb/core/scheme/scheme_tabledefs.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/api.h>
 
 namespace NKikimr::NKqp {
 
@@ -49,7 +49,7 @@ struct TEvScanData: public NActors::TEventLocal<TEvScanData, TKqpComputeEvents::
     ui32 ScanId;
     ui32 Generation;
     TVector<TOwnedCellVec> Rows;
-    std::shared_ptr<arrow::Table> ArrowBatch;
+    std::shared_ptr<arrow20::Table> ArrowBatch;
     std::vector<std::vector<ui32>> SplittedBatches;
 
     TOwnedCellVec LastKey;
@@ -136,7 +136,7 @@ struct TEvScanData: public NActors::TEventLocal<TEvScanData, TKqpComputeEvents::
         if (pbEv->Record.HasArrowBatch()) {
             auto batch = pbEv->Record.GetArrowBatch();
             auto schema = NArrow::DeserializeSchema(batch.GetSchema());
-            ev->ArrowBatch = NArrow::TStatusValidator::GetValid(arrow::Table::FromRecordBatches({ NArrow::DeserializeBatch(batch.GetBatch(), schema) }));
+            ev->ArrowBatch = NArrow::TStatusValidator::GetValid(arrow20::Table::FromRecordBatches({ NArrow::DeserializeBatch(batch.GetBatch(), schema) }));
         }
         return ev.Release();
     }

@@ -56,14 +56,14 @@ NUdf::TUnboxedValuePod ToBlocks(TComputationContext& ctx, size_t blockSize,
                 builders[j]->Add(item);
             }
         }
-        std::vector<arrow::Datum> batch;
+        std::vector<arrow20::Datum> batch;
         batch.reserve(width);
         for (size_t i = 0; i < width; i++) {
             batch.emplace_back(builders[i]->Build(converted >= total));
         }
 
         NUdf::TArgsDechunker dechunker(std::move(batch));
-        std::vector<arrow::Datum> chunk;
+        std::vector<arrow20::Datum> chunk;
         ui64 chunkLen = 0;
         while (dechunker.Next(chunk, chunkLen)) {
             NUdf::TUnboxedValue* items = nullptr;

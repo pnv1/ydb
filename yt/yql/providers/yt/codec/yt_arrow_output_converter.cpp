@@ -11,45 +11,45 @@ namespace NYql {
 
 class TBasicOutputConverter : public IYtOutputColumnConverter {
 public:
-    TBasicOutputConverter(std::shared_ptr<arrow::DataType> arrowType)
+    TBasicOutputConverter(std::shared_ptr<arrow20::DataType> arrowType)
         : ArrowType_(arrowType)
     {}
 
-    std::shared_ptr<arrow::ArrayData> Convert(std::shared_ptr<arrow::ArrayData> block) override {
+    std::shared_ptr<arrow20::ArrayData> Convert(std::shared_ptr<arrow20::ArrayData> block) override {
         YQL_ENSURE(ArrowType_->Equals(block->type), "block type differs from expected arrow output type");
         return block;
     }
 
-    std::shared_ptr<arrow::DataType> GetOutputType() override {
+    std::shared_ptr<arrow20::DataType> GetOutputType() override {
         return ArrowType_;
     }
 
 private:
-    std::shared_ptr<arrow::DataType> ArrowType_;
+    std::shared_ptr<arrow20::DataType> ArrowType_;
 };
 
 class TBoolOutputConverter : public IYtOutputColumnConverter {
 public:
-    TBoolOutputConverter(arrow::MemoryPool* pool)
+    TBoolOutputConverter(arrow20::MemoryPool* pool)
         : ExecContext_(pool)
     {}
 
-    std::shared_ptr<arrow::ArrayData> Convert(std::shared_ptr<arrow::ArrayData> block) override {
-        YQL_ENSURE(block->type->Equals(arrow::uint8()));
-        auto convertedDatum = ARROW_RESULT(arrow::compute::Cast(block, arrow::boolean(), arrow::compute::CastOptions::Safe(), &ExecContext_));
+    std::shared_ptr<arrow20::ArrayData> Convert(std::shared_ptr<arrow20::ArrayData> block) override {
+        YQL_ENSURE(block->type->Equals(arrow20::uint8()));
+        auto convertedDatum = ARROW_RESULT(arrow20::compute::Cast(block, arrow20::boolean(), arrow20::compute::CastOptions::Safe(), &ExecContext_));
         return convertedDatum.array();
     }
 
-    std::shared_ptr<arrow::DataType> GetOutputType() override {
-        return arrow::boolean();
+    std::shared_ptr<arrow20::DataType> GetOutputType() override {
+        return arrow20::boolean();
     }
 
 private:
-    arrow::compute::ExecContext ExecContext_;
+    arrow20::compute::ExecContext ExecContext_;
 };
 
-IYtOutputColumnConverter::TPtr MakeYtOutputColumnConverter(NKikimr::NMiniKQL::TType* type, arrow::MemoryPool* pool) {
-    std::shared_ptr<arrow::DataType> arrowType;
+IYtOutputColumnConverter::TPtr MakeYtOutputColumnConverter(NKikimr::NMiniKQL::TType* type, arrow20::MemoryPool* pool) {
+    std::shared_ptr<arrow20::DataType> arrowType;
     YQL_ENSURE(ConvertArrowOutputType(type, arrowType), "unsupported arrow output type");
 
     // only data and optional data types are supported at the moment

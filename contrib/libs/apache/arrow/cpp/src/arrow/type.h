@@ -1672,7 +1672,7 @@ enum class Endianness {
 };
 
 /// \class Schema
-/// \brief Sequence of arrow::Field objects describing the columns of a record
+/// \brief Sequence of arrow20::Field objects describing the columns of a record
 /// batch or table data structure
 class ARROW_EXPORT Schema : public detail::Fingerprintable,
                             public util::EqualityComparable<Schema>,
@@ -1788,7 +1788,7 @@ class ARROW_EXPORT SchemaBuilder {
   // with the same name already exists.
   enum ConflictPolicy {
     // Ignore the conflict and append the field. This is the default behavior of the
-    // Schema constructor and the `arrow::schema` factory function.
+    // Schema constructor and the `arrow20::schema` factory function.
     CONFLICT_APPEND = 0,
     // Keep the existing field and ignore the newer one.
     CONFLICT_IGNORE,

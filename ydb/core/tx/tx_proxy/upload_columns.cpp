@@ -12,7 +12,7 @@ public:
         TActorId sender,
         const TString& table,
         std::shared_ptr<TUploadTypes>& types,
-        std::shared_ptr<arrow::RecordBatch>& data,
+        std::shared_ptr<arrow20::RecordBatch>& data,
         ui64 cookie)
         : TUploadRowsBase(std::make_shared<TVector<std::pair<TSerializedCellVec, TString>>>())
         , Sender(sender)
@@ -70,7 +70,7 @@ private:
     const TActorId Sender;
     const TString Table;
     const std::shared_ptr<TVector<std::pair<TString, Ydb::Type>>> ColumnTypes;
-    const std::shared_ptr<arrow::RecordBatch> Data;
+    const std::shared_ptr<arrow20::RecordBatch> Data;
     const ui64 Cookie;
 
     NYql::TIssues Issues;
@@ -79,7 +79,7 @@ private:
 IActor* CreateUploadColumnsInternal(const TActorId& sender,
                                     const TString& table,
                                     std::shared_ptr<TUploadTypes> types,
-                                    std::shared_ptr<arrow::RecordBatch> data,
+                                    std::shared_ptr<arrow20::RecordBatch> data,
                                     ui64 cookie = 0) {
     return new TUploadColumnsInternal(sender, table, types, data, cookie);
 }

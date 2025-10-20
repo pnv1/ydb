@@ -10,8 +10,8 @@ std::partial_ordering TPredicateContainer::ComparePredicatesSamePrefix(const NOl
     Y_ABORT_UNLESS(r.Batch->num_columns());
     Y_ABORT_UNLESS(l.Batch->num_rows() == r.Batch->num_rows());
     Y_ABORT_UNLESS(l.Batch->num_rows() == 1);
-    std::vector<std::shared_ptr<arrow::Array>> lColumns;
-    std::vector<std::shared_ptr<arrow::Array>> rColumns;
+    std::vector<std::shared_ptr<arrow20::Array>> lColumns;
+    std::vector<std::shared_ptr<arrow20::Array>> rColumns;
     for (ui32 i = 0; i < std::min(l.Batch->columns().size(), r.Batch->columns().size()); ++i) {
         Y_ABORT_UNLESS(l.Batch->column_name(i) == r.Batch->column_name(i));
         lColumns.emplace_back(l.Batch->column(i));
@@ -28,7 +28,7 @@ TString TPredicateContainer::DebugString() const {
     }
 }
 
-int TPredicateContainer::MatchScalar(const ui32 columnIdx, const std::shared_ptr<arrow::Scalar>& s) const {
+int TPredicateContainer::MatchScalar(const ui32 columnIdx, const std::shared_ptr<arrow20::Scalar>& s) const {
     if (!Object) {
         return 1;
     }
@@ -118,7 +118,7 @@ bool TPredicateContainer::CrossRanges(const TPredicateContainer& ext) const {
 }
 
 TConclusion<NKikimr::NOlap::TPredicateContainer> TPredicateContainer::BuildPredicateFrom(
-    std::shared_ptr<NOlap::TPredicate> object, const std::shared_ptr<arrow::Schema>& pkSchema) {
+    std::shared_ptr<NOlap::TPredicate> object, const std::shared_ptr<arrow20::Schema>& pkSchema) {
     if (!object || object->Empty()) {
         return TPredicateContainer(NArrow::ECompareType::GREATER_OR_EQUAL);
     } else {
@@ -153,7 +153,7 @@ TConclusion<NKikimr::NOlap::TPredicateContainer> TPredicateContainer::BuildPredi
 }
 
 TConclusion<TPredicateContainer> TPredicateContainer::BuildPredicateTo(
-    std::shared_ptr<TPredicate> object, const std::shared_ptr<arrow::Schema>& pkSchema) {
+    std::shared_ptr<TPredicate> object, const std::shared_ptr<arrow20::Schema>& pkSchema) {
     if (!object || object->Empty()) {
         return TPredicateContainer(NArrow::ECompareType::LESS_OR_EQUAL);
     } else {

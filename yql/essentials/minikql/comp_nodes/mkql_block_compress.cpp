@@ -148,7 +148,7 @@ public:
 
             if (const auto popCount = GetBitmapPopCountCount(bitmap)) {
                 if (const auto out = output[InputWidth_ - 2]) {
-                    *out = ctx.HolderFactory.CreateArrowBlock(arrow::Datum(std::make_shared<arrow::UInt64Scalar>(popCount)));
+                    *out = ctx.HolderFactory.CreateArrowBlock(arrow20::Datum(std::make_shared<arrow20::UInt64Scalar>(popCount)));
                 }
                 break;
             }
@@ -237,7 +237,7 @@ private:
     const ui32 WideFieldsIndex_;
 };
 
-size_t GetBitmapPopCount(const std::shared_ptr<arrow::ArrayData>& arr) {
+size_t GetBitmapPopCount(const std::shared_ptr<arrow20::ArrayData>& arr) {
     size_t len = (size_t)arr->length;
     MKQL_ENSURE(arr->GetNullCount() == 0, "Bitmap block should not have nulls");
     const ui8* src = arr->GetValues<ui8>(1);
@@ -251,7 +251,7 @@ struct TCompressBlocksState: public TBlockState {
 
     const size_t MaxLength_;
 
-    std::vector<std::shared_ptr<arrow::ArrayData>> Arrays_;
+    std::vector<std::shared_ptr<arrow20::ArrayData>> Arrays_;
     std::vector<std::unique_ptr<IArrayBuilder>> Builders_;
 
     NYql::NUdf::TCounter CounterOutputRows_;
@@ -803,7 +803,7 @@ private:
                 MoveAllExceptBitmap(output);
 
                 if (const auto popCount = GetBitmapPopCountCount(bitmap)) {
-                    output[Input_.size() - 2] = HolderFactory_.CreateArrowBlock(arrow::Datum(std::make_shared<arrow::UInt64Scalar>(popCount)));
+                    output[Input_.size() - 2] = HolderFactory_.CreateArrowBlock(arrow20::Datum(std::make_shared<arrow20::UInt64Scalar>(popCount)));
                     break;
                 }
             }

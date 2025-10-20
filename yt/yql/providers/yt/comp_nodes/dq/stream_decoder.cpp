@@ -36,25 +36,28 @@
 #include <arrow/util/string.h>
 #include <arrow/util/thread_pool.h>
 #include <arrow/util/ubsan.h>
-#include <arrow/visitor_inline.h>
+#include <arrow/visit_type_inline.h>
 
 #include <generated/File.fbs.h>  // IWYU pragma: export
 #include <generated/Message.fbs.h>
 #include <generated/Schema.fbs.h>
 #include <generated/SparseTensor.fbs.h>
 
-namespace arrow {
+namespace arrow20 {
 
-namespace flatbuf = org::apache::arrow::flatbuf;
+namespace flatbuf = org::apache::arrow20::flatbuf;
 
-using internal::checked_cast;
-using internal::checked_pointer_cast;
-using internal::GetByteWidth;
+using arrow20::internal::checked_cast;
+using arrow20::internal::checked_pointer_cast;
 
 namespace ipc {
 
-using internal::FileBlock;
-using internal::kArrowMagicBytes;
+using arrow20::ipc::internal::FileBlock;
+using arrow20::ipc::internal::kArrowMagicBytes;
+using arrow20::ipc::internal::VerifyMessage;
+using arrow20::ipc::MetadataVersion;
+using arrow20::Status;
+using arrow20::Buffer;
 
 namespace NDqs {
 Status MaybeAlignMetadata(std::shared_ptr<Buffer>* metadata) {
@@ -109,7 +112,7 @@ Status WriteMessage(const Buffer& message, const IpcWriteOptions& options,
   }
 
   int32_t padded_flatbuffer_size =
-      BitUtil::ToLittleEndian(padded_message_length - prefix_size);
+      bit_util::ToLittleEndian(padded_message_length - prefix_size);
   RETURN_NOT_OK(file->Write(&padded_flatbuffer_size, sizeof(int32_t)));
 
   RETURN_NOT_OK(file->Write(message.data(), flatbuffer_size));
@@ -259,18 +262,18 @@ class MessageDecoder2::MessageDecoderImpl {
   }
 
   Status ConsumeInitialData(const uint8_t* data, int64_t) {
-    return ConsumeInitial(BitUtil::FromLittleEndian(util::SafeLoadAs<int32_t>(data)));
+    return ConsumeInitial(bit_util::FromLittleEndian(util::SafeLoadAs<int32_t>(data)));
   }
 
   Status ConsumeInitialBuffer(const std::shared_ptr<Buffer>& buffer) {
     ARROW_ASSIGN_OR_RAISE(auto continuation, ConsumeDataBufferInt32(buffer));
-    return ConsumeInitial(BitUtil::FromLittleEndian(continuation));
+    return ConsumeInitial(bit_util::FromLittleEndian(continuation));
   }
 
   Status ConsumeInitialChunks() {
     int32_t continuation = 0;
     RETURN_NOT_OK(ConsumeDataChunks(sizeof(int32_t), &continuation));
-    return ConsumeInitial(BitUtil::FromLittleEndian(continuation));
+    return ConsumeInitial(bit_util::FromLittleEndian(continuation));
   }
 
   Status ConsumeInitial(int32_t continuation) {
@@ -297,18 +300,18 @@ class MessageDecoder2::MessageDecoderImpl {
 
   Status ConsumeMetadataLengthData(const uint8_t* data, int64_t) {
     return ConsumeMetadataLength(
-        BitUtil::FromLittleEndian(util::SafeLoadAs<int32_t>(data)));
+        bit_util::FromLittleEndian(util::SafeLoadAs<int32_t>(data)));
   }
 
   Status ConsumeMetadataLengthBuffer(const std::shared_ptr<Buffer>& buffer) {
     ARROW_ASSIGN_OR_RAISE(auto metadata_length, ConsumeDataBufferInt32(buffer));
-    return ConsumeMetadataLength(BitUtil::FromLittleEndian(metadata_length));
+    return ConsumeMetadataLength(bit_util::FromLittleEndian(metadata_length));
   }
 
   Status ConsumeMetadataLengthChunks() {
     int32_t metadata_length = 0;
     RETURN_NOT_OK(ConsumeDataChunks(sizeof(int32_t), &metadata_length));
-    return ConsumeMetadataLength(BitUtil::FromLittleEndian(metadata_length));
+    return ConsumeMetadataLength(bit_util::FromLittleEndian(metadata_length));
   }
 
   Status ConsumeMetadataLength(int32_t metadata_length) {
@@ -503,8 +506,8 @@ MessageDecoder2::State MessageDecoder2::state() const { return impl_->state(); }
 enum class DictionaryKind { New, Delta, Replacement };
 
 Status InvalidMessageType(MessageType expected, MessageType actual) {
-  return Status::IOError("Expected IPC message of type ", ::arrow::ipc::FormatMessageType(expected),
-                         " but got ", ::arrow::ipc::FormatMessageType(actual));
+  return Status::IOError("Expected IPC message of type ", ::arrow20::ipc::FormatMessageType(expected),
+                         " but got ", ::arrow20::ipc::FormatMessageType(actual));
 }
 
 #define CHECK_MESSAGE_TYPE(expected, actual)           \
@@ -518,7 +521,7 @@ Status InvalidMessageType(MessageType expected, MessageType actual) {
   do {                                                                \
     if ((message).body() == nullptr) {                                \
       return Status::IOError("Expected body in IPC message of type ", \
-                             ::arrow::ipc::FormatMessageType((message).type()));    \
+                             ::arrow20::ipc::FormatMessageType((message).type()));    \
     }                                                                 \
   } while (0)
 
@@ -526,7 +529,7 @@ Status InvalidMessageType(MessageType expected, MessageType actual) {
   do {                                                                  \
     if ((message).body_length() != 0) {                                 \
       return Status::IOError("Unexpected body in IPC message of type ", \
-                             ::arrow::ipc::FormatMessageType((message).type()));      \
+                             ::arrow20::ipc::FormatMessageType((message).type()));      \
     }                                                                   \
   } while (0)
 struct IpcReadContext {
@@ -567,7 +570,7 @@ Result<std::shared_ptr<Buffer>> DecompressBuffer(const std::shared_ptr<Buffer>& 
 
   const uint8_t* data = buf->data();
   int64_t compressed_size = buf->size() - sizeof(int64_t);
-  int64_t uncompressed_size = BitUtil::FromLittleEndian(util::SafeLoadAs<int64_t>(data));
+  int64_t uncompressed_size = bit_util::FromLittleEndian(util::SafeLoadAs<int64_t>(data));
 
   ARROW_ASSIGN_OR_RAISE(auto uncompressed,
                         AllocateBuffer(uncompressed_size, options.memory_pool));
@@ -612,7 +615,7 @@ Status DecompressBuffers(Compression::type compression, const IpcReadOptions& op
   std::unique_ptr<util::Codec> codec;
   ARROW_ASSIGN_OR_RAISE(codec, util::Codec::Create(compression));
 
-  return ::arrow::internal::OptionalParallelFor(
+  return ::arrow20::internal::OptionalParallelFor(
       options.use_threads, static_cast<int>(buffers.size()), [&](int i) {
         ARROW_ASSIGN_OR_RAISE(*buffers[i],
                               DecompressBuffer(*buffers[i], options, codec.get()));
@@ -639,7 +642,7 @@ class ArrayLoader {
     if (length < 0) {
       return Status::Invalid("Negative length for reading buffer ", buffer_index_);
     }
-    if (!BitUtil::IsMultipleOf8(offset)) {
+    if (!bit_util::IsMultipleOf8(offset)) {
       return Status::Invalid("Buffer ", buffer_index_,
                              " did not start on 8-byte aligned offset: ", offset);
     }
@@ -848,6 +851,26 @@ class ArrayLoader {
 
   Status Visit(const ExtensionType& type) { return LoadType(*type.storage_type()); }
 
+  Status Visit(const StringViewType& type) {
+    return Status::NotImplemented("StringView type not supported");
+  }
+
+  Status Visit(const BinaryViewType& type) {
+    return Status::NotImplemented("BinaryView type not supported");
+  }
+
+  Status Visit(const ListViewType& type) {
+    return Status::NotImplemented("ListView type not supported");
+  }
+
+  Status Visit(const LargeListViewType& type) {
+    return Status::NotImplemented("LargeListView type not supported");
+  }
+
+  Status Visit(const RunEndEncodedType& type) {
+    return Status::NotImplemented("RunEndEncoded type not supported");
+  }
+
  private:
   const flatbuf::RecordBatch* metadata_;
   const MetadataVersion metadata_version_;
@@ -895,7 +918,7 @@ Result<std::shared_ptr<RecordBatch>> LoadRecordBatchSubset(
                                     context.options.memory_pool));
 
   if (inclusion_mask) {
-    filtered_schema = ::arrow::schema(std::move(filtered_fields), schema->metadata());
+    filtered_schema = ::arrow20::schema(std::move(filtered_fields), schema->metadata());
     columns.clear();
   } else {
     filtered_schema = schema;
@@ -909,7 +932,7 @@ Result<std::shared_ptr<RecordBatch>> LoadRecordBatchSubset(
   if (context.swap_endian) {
     for (int i = 0; i < static_cast<int>(filtered_columns.size()); ++i) {
       ARROW_ASSIGN_OR_RAISE(filtered_columns[i],
-                            arrow::internal::SwapEndianArrayData(filtered_columns[i]));
+                            arrow20::internal::SwapEndianArrayData(filtered_columns[i]));
     }
   }
   return RecordBatch::Make(std::move(filtered_schema), metadata->length(),
@@ -931,13 +954,13 @@ Status GetCompression(const flatbuf::RecordBatch* batch, Compression::type* out)
   *out = Compression::UNCOMPRESSED;
   const flatbuf::BodyCompression* compression = batch->compression();
   if (compression != nullptr) {
-    if (compression->method() != flatbuf::BodyCompressionMethod::BUFFER) {
+    if (compression->method() != flatbuf::BodyCompressionMethod_BUFFER) {
       return Status::Invalid("This library only supports BUFFER compression method");
     }
 
-    if (compression->codec() == flatbuf::CompressionType::LZ4_FRAME) {
+    if (compression->codec() == flatbuf::CompressionType_LZ4_FRAME) {
       *out = Compression::LZ4_FRAME;
-    } else if (compression->codec() == flatbuf::CompressionType::ZSTD) {
+    } else if (compression->codec() == flatbuf::CompressionType_ZSTD) {
       *out = Compression::ZSTD;
     } else {
       return Status::Invalid("Unsupported codec in RecordBatch::compression metadata");
@@ -955,7 +978,7 @@ Status GetCompressionExperimental(const flatbuf::Message* message,
     RETURN_NOT_OK(internal::GetKeyValueMetadata(message->custom_metadata(), &metadata));
     int index = metadata->FindKey("ARROW:experimental_compression");
     if (index != -1) {
-      auto name = arrow::internal::AsciiToLower(metadata->value(index));
+      auto name = arrow20::internal::AsciiToLower(metadata->value(index));
       ARROW_ASSIGN_OR_RAISE(*out, util::Codec::GetCompressionType(name));
     }
     return internal::CheckCompressionSupported(*out);
@@ -1008,7 +1031,7 @@ Result<std::shared_ptr<RecordBatch>> ReadRecordBatchInternal(
   Compression::type compression;
   RETURN_NOT_OK(GetCompression(batch, &compression));
   if (context.compression == Compression::UNCOMPRESSED &&
-      message->version() == flatbuf::MetadataVersion::V4) {
+      message->version() == flatbuf::MetadataVersion_V4) {
     RETURN_NOT_OK(GetCompressionExperimental(message, &compression));
   }
   context.compression = compression;
@@ -1108,7 +1131,7 @@ Status ReadDictionary(const Buffer& metadata, const IpcReadContext& context,
   Compression::type compression;
   RETURN_NOT_OK(GetCompression(batch_meta, &compression));
   if (compression == Compression::UNCOMPRESSED &&
-      message->version() == flatbuf::MetadataVersion::V4) {
+      message->version() == flatbuf::MetadataVersion_V4) {
     RETURN_NOT_OK(GetCompressionExperimental(message, &compression));
   }
 
@@ -1128,7 +1151,7 @@ Status ReadDictionary(const Buffer& metadata, const IpcReadContext& context,
   }
 
   if (context.swap_endian) {
-    ARROW_ASSIGN_OR_RAISE(dict_data, ::arrow::internal::SwapEndianArrayData(dict_data));
+    ARROW_ASSIGN_OR_RAISE(dict_data, ::arrow20::internal::SwapEndianArrayData(dict_data));
   }
 
   if (dictionary_batch->isDelta()) {
@@ -1269,7 +1292,7 @@ class StreamDecoder2::StreamDecoder2Impl : public MessageDecoderListener {
   Status ReadDictionary(const Message& message) {
     DictionaryKind kind;
     IpcReadContext context(dictionary_memo_.get(), options_, swap_endian_);
-    RETURN_NOT_OK(::arrow::ipc::NDqs::ReadDictionary(message, context, &kind));
+    RETURN_NOT_OK(::arrow20::ipc::NDqs::ReadDictionary(message, context, &kind));
     ++stats_.num_dictionary_batches;
     switch (kind) {
       case DictionaryKind::New:

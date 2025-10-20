@@ -2,7 +2,7 @@
 #include <ydb/services/ext_index/metadata/object.h>
 #include <ydb/services/ext_index/common/service.h>
 #include <ydb/services/metadata/ds_table/scheme_describe.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/record_batch.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/record_batch.h>
 #include <ydb/core/tx/tx_proxy/proxy.h>
 #include "add_index.h"
 
@@ -16,10 +16,10 @@ private:
     std::vector<NMetadata::NCSIndex::TObject> Indexes;
     mutable TAtomicCounter AtomicCounter = 0;
     IDataUpsertController::TPtr ExternalController;
-    std::shared_ptr<arrow::RecordBatch> Data;
+    std::shared_ptr<arrow20::RecordBatch> Data;
 public:
     TDataUpserter(std::vector<NMetadata::NCSIndex::TObject>&& indexes,
-        IDataUpsertController::TPtr externalController, std::shared_ptr<arrow::RecordBatch> data)
+        IDataUpsertController::TPtr externalController, std::shared_ptr<arrow20::RecordBatch> data)
         : Indexes(std::move(indexes))
         , ExternalController(externalController)
         , Data(data)

@@ -24,8 +24,8 @@
 #include <yql/essentials/minikql/aligned_page_pool.h>
 #include <yql/essentials/public/udf/arrow/memory_pool.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/type.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/memory_pool.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/type.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/memory_pool.h>
 
 #include <util/stream/format.h>
 
@@ -256,7 +256,7 @@ private:
         Counters->GetCounter("Stats/TargetConsumersConsumption")->Set(targetConsumersConsumption);
         Counters->GetCounter("Stats/ResultingConsumersConsumption")->Set(resultingConsumersConsumption);
         Counters->GetCounter("Stats/Coefficient")->Set(coefficient * 1e9);
-        Counters->GetCounter("Stats/ArrowAllocatedMemory")->Set(arrow::default_memory_pool()->bytes_allocated());
+        Counters->GetCounter("Stats/ArrowAllocatedMemory")->Set(arrow20::default_memory_pool()->bytes_allocated());
         Counters->GetCounter("Stats/ArrowYqlAllocatedMemory")->Set(NYql::NUdf::GetYqlMemoryPool()->bytes_allocated());
 
         auto *memoryStatsUpdate = new NNodeWhiteboard::TEvWhiteboard::TEvMemoryStatsUpdate();

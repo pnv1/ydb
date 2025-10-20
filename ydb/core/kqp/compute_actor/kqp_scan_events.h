@@ -11,7 +11,7 @@
 #include <ydb/library/actors/core/event_local.h>
 #include <ydb/library/actors/core/events.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/record_batch.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/record_batch.h>
 
 namespace NKikimr::NKqp::NScanPrivate {
 
@@ -39,7 +39,7 @@ struct TEvScanExchange {
 
     class TEvSendData: public NActors::TEventLocal<TEvSendData, EvSendData> {
     private:
-        YDB_READONLY_DEF(std::shared_ptr<arrow::Table>, ArrowBatch);
+        YDB_READONLY_DEF(std::shared_ptr<arrow20::Table>, ArrowBatch);
         YDB_ACCESSOR_DEF(TVector<TOwnedCellVec>, Rows);
         YDB_READONLY(ui64, TabletId, 0);
         YDB_ACCESSOR_DEF(std::vector<ui32>, DataIndexes);
@@ -53,7 +53,7 @@ struct TEvScanExchange {
             return ArrowBatch ? ArrowBatch->num_rows() : Rows.size();
         }
 
-        TEvSendData(const ui64 tabletId, const TEvKqpCompute::TEvScanData& data, const std::shared_ptr<arrow::Table>& arrowBatch)
+        TEvSendData(const ui64 tabletId, const TEvKqpCompute::TEvScanData& data, const std::shared_ptr<arrow20::Table>& arrowBatch)
             : ArrowBatch(arrowBatch)
             , TabletId(tabletId)
             , LocksInfo(data.LocksInfo)
@@ -65,7 +65,7 @@ struct TEvScanExchange {
             Y_ABORT_UNLESS(ArrowBatch->num_rows());
         }
 
-        TEvSendData(const ui64 tabletId, const TEvKqpCompute::TEvScanData& data, const std::shared_ptr<arrow::Table>& arrowBatch, std::vector<ui32>&& dataIndexes)
+        TEvSendData(const ui64 tabletId, const TEvKqpCompute::TEvScanData& data, const std::shared_ptr<arrow20::Table>& arrowBatch, std::vector<ui32>&& dataIndexes)
             : ArrowBatch(arrowBatch)
             , TabletId(tabletId)
             , DataIndexes(std::move(dataIndexes))

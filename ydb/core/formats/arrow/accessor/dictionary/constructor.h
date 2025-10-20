@@ -29,11 +29,11 @@ private:
         const TString& originalData, const TChunkConstructionData& externalInfo) const override;
     virtual NKikimrArrowAccessorProto::TConstructor DoSerializeToProto() const override;
     virtual bool DoDeserializeFromProto(const NKikimrArrowAccessorProto::TConstructor& proto) override;
-    std::shared_ptr<arrow::Schema> GetExpectedSchema(const std::shared_ptr<arrow::Field>& resultColumn) const;
+    std::shared_ptr<arrow20::Schema> GetExpectedSchema(const std::shared_ptr<arrow20::Field>& resultColumn) const;
     virtual TConclusion<std::shared_ptr<IChunkedArray>> DoConstructDefault(const TChunkConstructionData& externalInfo) const override;
 
 public:
-    static std::shared_ptr<arrow::DataType> GetTypeByVariantsCount(const ui32 count);
+    static std::shared_ptr<arrow20::DataType> GetTypeByVariantsCount(const ui32 count);
 
     TConstructor()
         : TBase(IChunkedArray::EType::Dictionary) {

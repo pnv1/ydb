@@ -25,8 +25,8 @@ enum class EShape {
     Log
 };
 
-arrow::Datum MakeIntColumn(ui32 len, EDistribution dist, EShape shape, ui32 buckets) {
-    arrow::Int32Builder builder;
+arrow20::Datum MakeIntColumn(ui32 len, EDistribution dist, EShape shape, ui32 buckets) {
+    arrow20::Int32Builder builder;
     ARROW_OK(builder.Reserve(len));
     for (ui32 i = 0; i < len; ++i) {
         ui32 val;
@@ -61,9 +61,9 @@ arrow::Datum MakeIntColumn(ui32 len, EDistribution dist, EShape shape, ui32 buck
         }
     }
 
-    std::shared_ptr<arrow::ArrayData> result;
+    std::shared_ptr<arrow20::ArrayData> result;
     ARROW_OK(builder.FinishInternal(&result));
-    return arrow::Datum(result);
+    return arrow20::Datum(result);
 }
 
 class IAggregator {
@@ -116,7 +116,7 @@ public:
         Cells_.resize(1u << 8);
     }
 
-    void AddBatch(arrow::Datum keys, arrow::Datum payloads) {
+    void AddBatch(arrow20::Datum keys, arrow20::Datum payloads) {
         auto arrKeys = keys.array();
         auto arrPayloads = payloads.array();
         auto len = arrKeys->length;
@@ -318,9 +318,9 @@ public:
         return MaxHashChainLen_;
     }
 
-    void GetResult(arrow::Datum& keys, arrow::Datum& sums) {
-        arrow::Int32Builder keysBuilder;
-        arrow::Int64Builder sumsBuilder;
+    void GetResult(arrow20::Datum& keys, arrow20::Datum& sums) {
+        arrow20::Int32Builder keysBuilder;
+        arrow20::Int64Builder sumsBuilder;
         if (!MoreThanOne_) {
             if (!One_.IsEmpty) {
                 ARROW_OK(keysBuilder.Reserve(1));
@@ -371,11 +371,11 @@ public:
             }
         }
 
-        std::shared_ptr<arrow::ArrayData> keysData;
+        std::shared_ptr<arrow20::ArrayData> keysData;
         ARROW_OK(keysBuilder.FinishInternal(&keysData));
         keys = keysData;
 
-        std::shared_ptr<arrow::ArrayData> sumsData;
+        std::shared_ptr<arrow20::ArrayData> sumsData;
         ARROW_OK(sumsBuilder.FinishInternal(&sumsData));
         sums = sumsData;
     }
@@ -447,7 +447,7 @@ int main(int argc, char** argv) {
     aggs.push_back(&sum);
     TAggregate<true, true> agg(aggs);
     agg.AddBatch(col1, col2);
-    arrow::Datum keys, sums;
+    arrow20::Datum keys, sums;
     agg.GetResult(keys, sums);
     ui64 total1 = 0;
     for (ui32 i = 0; i < col2.length(); ++i) {
@@ -474,7 +474,7 @@ int main(int argc, char** argv) {
         for (ui32 i = 0; i < nIters; ++i) {
             TAggregate<false, true> agg(aggs);
             agg.AddBatch(col1, col2);
-            arrow::Datum keys, sums;
+            arrow20::Datum keys, sums;
             agg.GetResult(keys, sums);
         }
 

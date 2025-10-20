@@ -6,11 +6,11 @@
 
 namespace NKikimr::NMiniKQL {
 
-class TArrowMemoryPool : public arrow::MemoryPool {
+class TArrowMemoryPool : public arrow20::MemoryPool {
 public:
-    arrow::Status Allocate(int64_t size, uint8_t** out) final;
-    arrow::Status Reallocate(int64_t old_size, int64_t new_size, uint8_t** ptr) final;
-    void Free(uint8_t* buffer, int64_t size) final;
+    arrow20::Status Allocate(int64_t size, int64_t alignment, uint8_t** out) final;
+    arrow20::Status Reallocate(int64_t old_size, int64_t new_size, int64_t alignment, uint8_t** ptr) final;
+    void Free(uint8_t* buffer, int64_t size, int64_t alignment) final;
 
     int64_t max_memory() const final {
         return MaxMemory_.load();
@@ -18,6 +18,14 @@ public:
 
     int64_t bytes_allocated() const final {
         return BytesAllocated_.load();
+    }
+
+    int64_t total_bytes_allocated() const final {
+        return bytes_allocated();
+    }
+
+    int64_t num_allocations() const final {
+        return 0;
     }
 
     std::string backend_name() const final {
@@ -38,7 +46,7 @@ private:
     std::atomic<int64_t> MaxMemory_{0};
 };
 
-static inline arrow::MemoryPool* GetArrowMemoryPool() {
+static inline arrow20::MemoryPool* GetArrowMemoryPool() {
     return Singleton<TArrowMemoryPool>();
 }
 

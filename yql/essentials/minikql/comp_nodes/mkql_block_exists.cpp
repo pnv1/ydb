@@ -10,40 +10,49 @@ namespace {
 
 class TBlockExistsExec {
 public:
-    arrow::Status Exec(arrow::compute::KernelContext* ctx, const arrow::compute::ExecBatch& batch, arrow::Datum* res) const {
-        const auto& input = batch.values[0];
+    arrow20::Status Exec(arrow20::compute::KernelContext* ctx, const arrow20::compute::ExecSpan& batch, arrow20::compute::ExecResult* res) const {
+        const auto& input = batch[0];
         if (input.is_scalar()) {
-            *res = arrow::Datum(static_cast<ui8>(input.scalar()->is_valid));
-            return arrow::Status::OK();
+            auto scalarResult = arrow20::MakeArrayFromScalar(arrow20::UInt8Scalar(static_cast<ui8>(input.scalar->is_valid)), 1, ctx->memory_pool());
+            if (!scalarResult.ok()) {
+                return scalarResult.status();
+            }
+            res->value = (*scalarResult)->data();
+            return arrow20::Status::OK();
         }
         MKQL_ENSURE(input.is_array(), "Expected array");
-        const auto& arr = *input.array();
+        const auto& arr = input.array;
 
         auto nullCount = arr.GetNullCount();
         if (nullCount == arr.length) {
-            *res = MakeFalseArray(ctx->memory_pool(), arr.length);
+            res->value = MakeFalseArray(ctx->memory_pool(), arr.length).array();
         } else if (nullCount == 0) {
-            *res = MakeTrueArray(ctx->memory_pool(), arr.length);
+            res->value = MakeTrueArray(ctx->memory_pool(), arr.length).array();
         } else {
-            *res = MakeBitmapArray(ctx->memory_pool(), arr.length, arr.offset,
-                                   arr.buffers[0]->data());
+            res->value = MakeBitmapArray(ctx->memory_pool(), arr.length, arr.offset,
+                                   arr.buffers[0].data).array();
         }
 
-        return arrow::Status::OK();
+        return arrow20::Status::OK();
     }
 };
 
-std::shared_ptr<arrow::compute::ScalarKernel> MakeBlockExistsKernel(const TVector<TType*>& argTypes, TType* resultType) {
-    std::shared_ptr<arrow::DataType> returnArrowType;
+arrow20::Status BlockExistsKernelExec(arrow20::compute::KernelContext* ctx, const arrow20::compute::ExecSpan& batch, arrow20::compute::ExecResult* res) {
+    auto* exec = reinterpret_cast<TBlockExistsExec*>(ctx->kernel()->data.get());
+    return exec->Exec(ctx, batch, res);
+}
+
+std::shared_ptr<arrow20::compute::ScalarKernel> MakeBlockExistsKernel(const TVector<TType*>& argTypes, TType* resultType) {
+    std::shared_ptr<arrow20::DataType> returnArrowType;
     MKQL_ENSURE(ConvertArrowType(AS_TYPE(TBlockType, resultType)->GetItemType(), returnArrowType), "Unsupported arrow type");
     // Ensure the result Arrow type (i.e. boolean) is Arrow UInt8Type.
-    Y_DEBUG_ABORT_UNLESS(returnArrowType == arrow::uint8());
+    Y_DEBUG_ABORT_UNLESS(returnArrowType == arrow20::uint8());
     auto exec = std::make_shared<TBlockExistsExec>();
-    auto kernel = std::make_shared<arrow::compute::ScalarKernel>(ConvertToInputTypes(argTypes), ConvertToOutputType(resultType),
-                                                                 [exec](arrow::compute::KernelContext* ctx, const arrow::compute::ExecBatch& batch, arrow::Datum* res) {
-                                                                     return exec->Exec(ctx, batch, res);
-                                                                 });
-    kernel->null_handling = arrow::compute::NullHandling::OUTPUT_NOT_NULL;
+    auto kernel = std::make_shared<arrow20::compute::ScalarKernel>(
+        arrow20::compute::KernelSignature::Make(ConvertToInputTypes(argTypes), ConvertToOutputType(resultType)),
+        BlockExistsKernelExec);
+    kernel->data = std::reinterpret_pointer_cast<arrow20::compute::KernelState>(exec);
+    kernel->null_handling = arrow20::compute::NullHandling::OUTPUT_NOT_NULL;
     return kernel;
 }
 

@@ -462,7 +462,7 @@ class TOptimizerPlanner : public IOptimizerPlanner, private TSettings {
 
 public:
     TOptimizerPlanner(const TInternalPathId pathId, const std::shared_ptr<IStoragesManager>& storagesManager,
-            const std::shared_ptr<arrow::Schema>& primaryKeysSchema, const TSettings& settings = {})
+            const std::shared_ptr<arrow20::Schema>& primaryKeysSchema, const TSettings& settings = {})
         : TBase(pathId, settings.NodePortionsCountLimit)
         , TSettings(settings)
         , StoragesManager(storagesManager)
@@ -718,7 +718,7 @@ private:
 
 private:
     std::shared_ptr<IStoragesManager> StoragesManager;
-    std::shared_ptr<arrow::Schema> PrimaryKeysSchema;
+    std::shared_ptr<arrow20::Schema> PrimaryKeysSchema;
 
     // Accumulator accumulates small portions by size-tiered compaction
     mutable std::deque<TAccumulator> Accumulator;

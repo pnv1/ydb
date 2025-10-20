@@ -7,7 +7,7 @@
 #include <ydb/services/bg_tasks/abstract/interface.h>
 #include <ydb/services/metadata/abstract/request_features.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/array/builder_base.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/array/builder_base.h>
 #include <library/cpp/object_factory/object_factory.h>
 
 namespace NKikimr::NArrow::NAccessor::NSubColumns {
@@ -21,7 +21,7 @@ public:
 
 private:
     virtual TConclusionStatus DoAddDataToBuilders(
-        const std::shared_ptr<arrow::Array>& sourceArray, TDataBuilder& dataBuilder) const = 0;
+        const std::shared_ptr<arrow20::Array>& sourceArray, TDataBuilder& dataBuilder) const = 0;
     virtual bool DoDeserializeFromProto(const TProto& proto) = 0;
     virtual void DoSerializeToProto(TProto& proto) const = 0;
     virtual NJson::TJsonValue DoDebugJson() const {
@@ -53,7 +53,7 @@ public:
     virtual ~IDataAdapter() = default;
 
     [[nodiscard]] TConclusionStatus AddDataToBuilders(
-        const std::shared_ptr<arrow::Array>& sourceArray, TDataBuilder& dataBuilder) const noexcept;
+        const std::shared_ptr<arrow20::Array>& sourceArray, TDataBuilder& dataBuilder) const noexcept;
 };
 
 class TJsonScanExtractor: public IDataAdapter {
@@ -80,7 +80,7 @@ private:
     }
 
     virtual TConclusionStatus DoAddDataToBuilders(
-        const std::shared_ptr<arrow::Array>& sourceArray, TDataBuilder& dataBuilder) const override;
+        const std::shared_ptr<arrow20::Array>& sourceArray, TDataBuilder& dataBuilder) const override;
     virtual bool DoDeserializeFromProto(const TProto& proto) override {
         if (!proto.HasJsonScanner() && !proto.HasSIMDJsonScanner()) {
             return true;

@@ -4,7 +4,7 @@ namespace NKikimr {
 
 namespace NMiniKQL {
 
-TKernelFamilyBase::TKernelFamilyBase(const arrow::compute::FunctionOptions* functionOptions)
+TKernelFamilyBase::TKernelFamilyBase(const arrow20::compute::FunctionOptions* functionOptions)
     : TKernelFamily(functionOptions)
 {
 }

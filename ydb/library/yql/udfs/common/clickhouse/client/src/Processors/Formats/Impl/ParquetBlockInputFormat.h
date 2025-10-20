@@ -7,7 +7,7 @@
 #include <Processors/Formats/IInputFormat.h>
 #include <Formats/FormatSettings.h>
 
-namespace parquet::arrow { class FileReader; }
+namespace parquet20::arrow20 { class FileReader; }
 
 namespace arrow { class Buffer; }
 
@@ -32,7 +32,7 @@ private:
     void prepareReader();
 
 private:
-    std::unique_ptr<parquet::arrow::FileReader> file_reader;
+    std::unique_ptr<parquet20::arrow20::FileReader> file_reader;
     int row_group_total = 0;
     // indices of columns to read from Parquet file
     std::vector<int> column_indices;

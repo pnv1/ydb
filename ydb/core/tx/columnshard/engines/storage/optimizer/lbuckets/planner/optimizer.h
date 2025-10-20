@@ -769,7 +769,7 @@ public:
     }
 
     TPortionsBucket(
-        const std::shared_ptr<TPortionInfo>& portion, const std::shared_ptr<arrow::Schema>& pkSchema, const std::shared_ptr<TCounters>& counters)
+        const std::shared_ptr<TPortionInfo>& portion, const std::shared_ptr<arrow20::Schema>& pkSchema, const std::shared_ptr<TCounters>& counters)
         : MainPortion(portion)
         , Counters(counters)
         , Others(Counters, GetCommonFreshnessCheckDuration()) {
@@ -845,7 +845,7 @@ public:
 
     std::shared_ptr<TColumnEngineChanges> BuildOptimizationTask(std::shared_ptr<TGranuleMeta> granule,
         const std::shared_ptr<NDataLocks::TManager>& locksManager, const NArrow::TSimpleRow* nextBorder,
-        const std::shared_ptr<arrow::Schema>& primaryKeysSchema, const std::shared_ptr<IStoragesManager>& storagesManager) const {
+        const std::shared_ptr<arrow20::Schema>& primaryKeysSchema, const std::shared_ptr<IStoragesManager>& storagesManager) const {
         auto youngestPortion = GetYoungestPortion(nextBorder);
         auto oldestPortion = GetOldestPortion(nextBorder);
         AFL_VERIFY(youngestPortion && oldestPortion);
@@ -981,7 +981,7 @@ private:
         }
     };
 
-    const std::shared_ptr<arrow::Schema> PrimaryKeysSchema;
+    const std::shared_ptr<arrow20::Schema> PrimaryKeysSchema;
     const std::shared_ptr<IStoragesManager> StoragesManager;
     std::shared_ptr<TPortionsBucket> LeftBucket;
     std::map<NArrow::TSimpleRow, std::shared_ptr<TPortionsBucket>> Buckets;
@@ -1080,7 +1080,7 @@ private:
     }
 
 public:
-    TPortionBuckets(const std::shared_ptr<arrow::Schema>& primaryKeysSchema, const std::shared_ptr<IStoragesManager>& storagesManager,
+    TPortionBuckets(const std::shared_ptr<arrow20::Schema>& primaryKeysSchema, const std::shared_ptr<IStoragesManager>& storagesManager,
         const std::shared_ptr<TCounters>& counters)
         : PrimaryKeysSchema(primaryKeysSchema)
         , StoragesManager(storagesManager)
@@ -1280,7 +1280,7 @@ public:
     }
 
     TOptimizerPlanner(const TInternalPathId pathId, const std::shared_ptr<IStoragesManager>& storagesManager,
-        const std::shared_ptr<arrow::Schema>& primaryKeysSchema, const std::optional<ui64>& nodePortionsCountLimit)
+        const std::shared_ptr<arrow20::Schema>& primaryKeysSchema, const std::optional<ui64>& nodePortionsCountLimit)
         : TBase(pathId, nodePortionsCountLimit)
         , Counters(std::make_shared<TCounters>())
         , Buckets(primaryKeysSchema, storagesManager, Counters)

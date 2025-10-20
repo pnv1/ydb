@@ -57,9 +57,23 @@ extern "C" {
 constexpr auto PG_DAY = DAY;
 constexpr auto PG_SECOND = SECOND;
 constexpr auto PG_ERROR = ERROR;
+constexpr auto PG_MICROSECOND = MICROSECOND;
+constexpr auto PG_MILLISECOND = MILLISECOND;
+constexpr auto PG_MINUTE = MINUTE;
+constexpr auto PG_HOUR = HOUR;
+constexpr auto PG_WEEK = WEEK;
+constexpr auto PG_MONTH = MONTH;
+constexpr auto PG_YEAR = YEAR;
 #undef DAY
 #undef SECOND
 #undef ERROR
+#undef MICROSECOND
+#undef MILLISECOND
+#undef MINUTE
+#undef HOUR
+#undef WEEK
+#undef MONTH
+#undef YEAR
 }
 
 #include <yql/essentials/core/pg_settings/guc_settings.h>
@@ -94,10 +108,6 @@ constexpr auto PG_ERROR = ERROR;
 
 #include "arrow.h"
 #include "arrow_impl.h"
-
-#define DAY PG_DAY
-#define SECOND PG_SECOND
-#define ERROR PG_ERROR
 
 extern "C" {
 extern void *MkqlAlloc(MemoryContext context, Size size);
@@ -2710,15 +2720,15 @@ struct TFromPgExec {
         , IsCString(NPg::LookupType(sourceId).TypeLen == -2)
     {}
 
-    arrow::Status Exec(arrow::compute::KernelContext* ctx, const arrow::compute::ExecBatch& batch, arrow::Datum* res) const {
-        arrow::Datum inputDatum = batch.values[0];
-        Y_ENSURE(inputDatum.is_array());
-        const auto& array= *inputDatum.array();
+    arrow20::Status Exec(arrow20::compute::KernelContext* ctx, const arrow20::compute::ExecSpan& batch, arrow20::compute::ExecResult* res) const {
+        const auto& array = batch[0].array;
+        // array is already ArraySpan
+        
         size_t length = array.length;
         switch (SourceId) {
         case BOOLOID: {
             auto inputPtr = array.GetValues<ui64>(1);
-            auto outputPtr = res->array()->GetMutableValues<ui8>(1);
+            auto outputPtr = res->array_span_mutable()->buffers[1].mutable_data_as<ui8>();
             for (size_t i = 0; i < length; ++i) {
                 outputPtr[i] = DatumGetBool(inputPtr[i]) ? 1 : 0;
             }
@@ -2726,7 +2736,7 @@ struct TFromPgExec {
         }
         case INT2OID: {
             auto inputPtr = array.GetValues<ui64>(1);
-            auto outputPtr = res->array()->GetMutableValues<i16>(1);
+            auto outputPtr = res->array_span_mutable()->buffers[1].mutable_data_as<i16>();
             for (size_t i = 0; i < length; ++i) {
                 outputPtr[i] = DatumGetInt16(inputPtr[i]);
             }
@@ -2734,7 +2744,7 @@ struct TFromPgExec {
         }
         case INT4OID: {
             auto inputPtr = array.GetValues<ui64>(1);
-            auto outputPtr = res->array()->GetMutableValues<i32>(1);
+            auto outputPtr = res->array_span_mutable()->buffers[1].mutable_data_as<i32>();
             for (size_t i = 0; i < length; ++i) {
                 outputPtr[i] = DatumGetInt32(inputPtr[i]);
             }
@@ -2742,7 +2752,7 @@ struct TFromPgExec {
         }
         case INT8OID: {
             auto inputPtr = array.GetValues<ui64>(1);
-            auto outputPtr = res->array()->GetMutableValues<i64>(1);
+            auto outputPtr = res->array_span_mutable()->buffers[1].mutable_data_as<i64>();
             for (size_t i = 0; i < length; ++i) {
                 outputPtr[i] = DatumGetInt64(inputPtr[i]);
             }
@@ -2750,7 +2760,7 @@ struct TFromPgExec {
         }
         case FLOAT4OID: {
             auto inputPtr = array.GetValues<ui64>(1);
-            auto outputPtr = res->array()->GetMutableValues<float>(1);
+            auto outputPtr = res->array_span_mutable()->buffers[1].mutable_data_as<float>();
             for (size_t i = 0; i < length; ++i) {
                 outputPtr[i] = DatumGetFloat4(inputPtr[i]);
             }
@@ -2758,7 +2768,7 @@ struct TFromPgExec {
         }
         case FLOAT8OID: {
             auto inputPtr = array.GetValues<ui64>(1);
-            auto outputPtr = res->array()->GetMutableValues<double>(1);
+            auto outputPtr = res->array_span_mutable()->buffers[1].mutable_data_as<double>();
             for (size_t i = 0; i < length; ++i) {
                 outputPtr[i] = DatumGetFloat8(inputPtr[i]);
             }
@@ -2768,8 +2778,8 @@ struct TFromPgExec {
         case VARCHAROID:
         case BYTEAOID:
         case CSTRINGOID: {
-            NUdf::TStringBlockReader<arrow::BinaryType, true> reader;
-            NUdf::TStringArrayBuilder<arrow::BinaryType, true> builder(NKikimr::NMiniKQL::TTypeInfoHelper(), SourceId == BYTEAOID ? arrow::binary() : arrow::utf8(), *ctx->memory_pool(), length);
+            NUdf::TStringBlockReader<arrow20::BinaryType, true> reader;
+            NUdf::TStringArrayBuilder<arrow20::BinaryType, true> builder(NKikimr::NMiniKQL::TTypeInfoHelper(), SourceId == BYTEAOID ? arrow20::binary() : arrow20::utf8(), *ctx->memory_pool(), length);
             for (size_t i = 0; i < length; ++i) {
                 auto item = reader.GetItem(array, i);
                 if (!item) {
@@ -2790,12 +2800,13 @@ struct TFromPgExec {
                 builder.Add(NUdf::TBlockItem(NUdf::TStringRef(ptr, len)));
             }
 
-            *res = builder.Build(true);
+            auto datum = builder.Build(true);
+            res->value = datum.array();
             break;
         }
         case DATEOID: {
             NUdf::TFixedSizeBlockReader<ui64, true> reader;
-            NUdf::TFixedSizeArrayBuilder<i32, true> builder(NKikimr::NMiniKQL::TTypeInfoHelper(), arrow::int32(), *ctx->memory_pool(), length);
+            NUdf::TFixedSizeArrayBuilder<i32, true> builder(NKikimr::NMiniKQL::TTypeInfoHelper(), arrow20::int32(), *ctx->memory_pool(), length);
             for (size_t i = 0; i < length; ++i) {
                 auto item = reader.GetItem(array, i);
                 if (!item) {
@@ -2812,12 +2823,13 @@ struct TFromPgExec {
                 builder.Add(NUdf::TBlockItem(res));
             }
 
-            *res = builder.Build(true);
+            auto datum = builder.Build(true);
+            res->value = datum.array();
             break;
         }
         case TIMESTAMPOID: {
             NUdf::TFixedSizeBlockReader<ui64, true> reader;
-            NUdf::TFixedSizeArrayBuilder<i64, true> builder(NKikimr::NMiniKQL::TTypeInfoHelper(), arrow::int64(), *ctx->memory_pool(), length);
+            NUdf::TFixedSizeArrayBuilder<i64, true> builder(NKikimr::NMiniKQL::TTypeInfoHelper(), arrow20::int64(), *ctx->memory_pool(), length);
             for (size_t i = 0; i < length; ++i) {
                 auto item = reader.GetItem(array, i);
                 if (!item) {
@@ -2834,27 +2846,28 @@ struct TFromPgExec {
                 builder.Add(NUdf::TBlockItem(res));
             }
 
-            *res = builder.Build(true);
+            auto datum = builder.Build(true);
+            res->value = datum.array();
             break;
         }
         default:
             ythrow yexception() << "Unsupported type: " << NPg::LookupType(SourceId).Name;
         }
-        return arrow::Status::OK();
+        return arrow20::Status::OK();
     }
 
     const ui32 SourceId;
     const bool IsCString;
 };
 
-std::shared_ptr<arrow::compute::ScalarKernel> MakeFromPgKernel(TType* inputType, TType* resultType, ui32 sourceId) {
+std::shared_ptr<arrow20::compute::ScalarKernel> MakeFromPgKernel(TType* inputType, TType* resultType, ui32 sourceId) {
     const TVector<TType*> argTypes = { inputType };
 
-    std::shared_ptr<arrow::DataType> returnArrowType;
+    std::shared_ptr<arrow20::DataType> returnArrowType;
     MKQL_ENSURE(ConvertArrowType(AS_TYPE(TBlockType, resultType)->GetItemType(), returnArrowType), "Unsupported arrow type");
     auto exec = std::make_shared<TFromPgExec>(sourceId);
-    auto kernel = std::make_shared<arrow::compute::ScalarKernel>(ConvertToInputTypes(argTypes), ConvertToOutputType(resultType),
-        [exec](arrow::compute::KernelContext* ctx, const arrow::compute::ExecBatch& batch, arrow::Datum* res) {
+    auto kernel = std::make_shared<arrow20::compute::ScalarKernel>(arrow20::compute::KernelSignature::Make(ConvertToInputTypes(argTypes), ConvertToOutputType(resultType)),
+        [exec](arrow20::compute::KernelContext* ctx, const arrow20::compute::ExecSpan& batch, arrow20::compute::ExecResult* res) {
         return exec->Exec(ctx, batch, res);
     });
 
@@ -2872,7 +2885,7 @@ std::shared_ptr<arrow::compute::ScalarKernel> MakeFromPgKernel(TType* inputType,
     case CSTRINGOID:
     case DATEOID:
     case TIMESTAMPOID:
-        kernel->null_handling = arrow::compute::NullHandling::COMPUTED_NO_PREALLOCATE;
+        kernel->null_handling = arrow20::compute::NullHandling::COMPUTED_NO_PREALLOCATE;
         break;
     default:
         ythrow yexception() << "Unsupported type: " << NPg::LookupType(sourceId).Name;
@@ -2886,15 +2899,15 @@ struct TToPgExec {
         : SourceDataSlot(sourceDataSlot)
     {}
 
-    arrow::Status Exec(arrow::compute::KernelContext* ctx, const arrow::compute::ExecBatch& batch, arrow::Datum* res) const {
-        arrow::Datum inputDatum = batch.values[0];
-        Y_ENSURE(inputDatum.is_array());
-        const auto& array= *inputDatum.array();
+    arrow20::Status Exec(arrow20::compute::KernelContext* ctx, const arrow20::compute::ExecSpan& batch, arrow20::compute::ExecResult* res) const {
+        const auto& array = batch[0].array;
+        // array is already ArraySpan
+        
         size_t length = array.length;
         switch (SourceDataSlot) {
         case NUdf::EDataSlot::Bool: {
             auto inputPtr = array.GetValues<ui8>(1);
-            auto outputPtr = res->array()->GetMutableValues<ui64>(1);
+            auto outputPtr = res->array_span_mutable()->buffers[1].mutable_data_as<ui64>();
             for (size_t i = 0; i < length; ++i) {
                 outputPtr[i] = BoolGetDatum(inputPtr[i]);
             }
@@ -2902,7 +2915,7 @@ struct TToPgExec {
         }
         case NUdf::EDataSlot::Int8: {
             auto inputPtr = array.GetValues<i8>(1);
-            auto outputPtr = res->array()->GetMutableValues<ui64>(1);
+            auto outputPtr = res->array_span_mutable()->buffers[1].mutable_data_as<ui64>();
             for (size_t i = 0; i < length; ++i) {
                 outputPtr[i] = Int16GetDatum(inputPtr[i]);
             }
@@ -2910,7 +2923,7 @@ struct TToPgExec {
         }
         case NUdf::EDataSlot::Uint8: {
             auto inputPtr = array.GetValues<ui8>(1);
-            auto outputPtr = res->array()->GetMutableValues<ui64>(1);
+            auto outputPtr = res->array_span_mutable()->buffers[1].mutable_data_as<ui64>();
             for (size_t i = 0; i < length; ++i) {
                 outputPtr[i] = Int16GetDatum(inputPtr[i]);
             }
@@ -2918,7 +2931,7 @@ struct TToPgExec {
         }
         case NUdf::EDataSlot::Int16: {
             auto inputPtr = array.GetValues<i16>(1);
-            auto outputPtr = res->array()->GetMutableValues<ui64>(1);
+            auto outputPtr = res->array_span_mutable()->buffers[1].mutable_data_as<ui64>();
             for (size_t i = 0; i < length; ++i) {
                 outputPtr[i] = Int16GetDatum(inputPtr[i]);
             }
@@ -2926,7 +2939,7 @@ struct TToPgExec {
         }
         case NUdf::EDataSlot::Uint16: {
             auto inputPtr = array.GetValues<ui16>(1);
-            auto outputPtr = res->array()->GetMutableValues<ui64>(1);
+            auto outputPtr = res->array_span_mutable()->buffers[1].mutable_data_as<ui64>();
             for (size_t i = 0; i < length; ++i) {
                 outputPtr[i] = Int32GetDatum(inputPtr[i]);
             }
@@ -2934,7 +2947,7 @@ struct TToPgExec {
         }
         case NUdf::EDataSlot::Int32: {
             auto inputPtr = array.GetValues<i32>(1);
-            auto outputPtr = res->array()->GetMutableValues<ui64>(1);
+            auto outputPtr = res->array_span_mutable()->buffers[1].mutable_data_as<ui64>();
             for (size_t i = 0; i < length; ++i) {
                 outputPtr[i] = Int32GetDatum(inputPtr[i]);
             }
@@ -2942,7 +2955,7 @@ struct TToPgExec {
         }
         case NUdf::EDataSlot::Uint32: {
             auto inputPtr = array.GetValues<ui32>(1);
-            auto outputPtr = res->array()->GetMutableValues<ui64>(1);
+            auto outputPtr = res->array_span_mutable()->buffers[1].mutable_data_as<ui64>();
             for (size_t i = 0; i < length; ++i) {
                 outputPtr[i] = Int64GetDatum(inputPtr[i]);
             }
@@ -2950,7 +2963,7 @@ struct TToPgExec {
         }
         case NUdf::EDataSlot::Int64: {
             auto inputPtr = array.GetValues<i64>(1);
-            auto outputPtr = res->array()->GetMutableValues<ui64>(1);
+            auto outputPtr = res->array_span_mutable()->buffers[1].mutable_data_as<ui64>();
             for (size_t i = 0; i < length; ++i) {
                 outputPtr[i] = Int64GetDatum(inputPtr[i]);
             }
@@ -2958,7 +2971,7 @@ struct TToPgExec {
         }
         case NUdf::EDataSlot::Uint64: {
             NUdf::TFixedSizeBlockReader<ui64, true> reader;
-            NUdf::TStringArrayBuilder<arrow::BinaryType, true> builder(NKikimr::NMiniKQL::TTypeInfoHelper(), arrow::binary(), *ctx->memory_pool(), length);
+            NUdf::TStringArrayBuilder<arrow20::BinaryType, true> builder(NKikimr::NMiniKQL::TTypeInfoHelper(), arrow20::binary(), *ctx->memory_pool(), length);
             for (size_t i = 0; i < length; ++i) {
                 auto item = reader.GetItem(array, i);
                 if (!item) {
@@ -2966,19 +2979,20 @@ struct TToPgExec {
                     continue;
                 }
 
-                auto res = Uint64ToPgNumeric(item.Get<ui64>());
-                auto ref = NUdf::TStringRef((const char*)res, GetFullVarSize((const text*)res));
+                auto pgNumeric = Uint64ToPgNumeric(item.Get<ui64>());
+                auto ref = NUdf::TStringRef((const char*)pgNumeric, GetFullVarSize((const text*)pgNumeric));
                 auto ptr = builder.AddPgItem<false, 0>(ref);
-                UpdateCleanVarSize((text*)(ptr + sizeof(void*)), GetCleanVarSize((const text*)res));
-                pfree(res);
+                UpdateCleanVarSize((text*)(ptr + sizeof(void*)), GetCleanVarSize((const text*)pgNumeric));
+                pfree(pgNumeric);
             }
 
-            *res = builder.Build(true);
+            auto datum = builder.Build(true);
+            res->value = datum.array();
             break;
         }
         case NUdf::EDataSlot::Float: {
             auto inputPtr = array.GetValues<float>(1);
-            auto outputPtr = res->array()->GetMutableValues<ui64>(1);
+            auto outputPtr = res->array_span_mutable()->buffers[1].mutable_data_as<ui64>();
             for (size_t i = 0; i < length; ++i) {
                 outputPtr[i] = Float4GetDatum(inputPtr[i]);
             }
@@ -2986,7 +3000,7 @@ struct TToPgExec {
         }
         case NUdf::EDataSlot::Double: {
             auto inputPtr = array.GetValues<double>(1);
-            auto outputPtr = res->array()->GetMutableValues<ui64>(1);
+            auto outputPtr = res->array_span_mutable()->buffers[1].mutable_data_as<ui64>();
             for (size_t i = 0; i < length; ++i) {
                 outputPtr[i] = Float8GetDatum(inputPtr[i]);
             }
@@ -2995,8 +3009,8 @@ struct TToPgExec {
         case NUdf::EDataSlot::Utf8:
         case NUdf::EDataSlot::String:
         case NUdf::EDataSlot::Yson: {
-            NUdf::TStringBlockReader<arrow::BinaryType, true> reader;
-            NUdf::TStringArrayBuilder<arrow::BinaryType, true> builder(NKikimr::NMiniKQL::TTypeInfoHelper(), arrow::binary(), *ctx->memory_pool(), length);
+            NUdf::TStringBlockReader<arrow20::BinaryType, true> reader;
+            NUdf::TStringArrayBuilder<arrow20::BinaryType, true> builder(NKikimr::NMiniKQL::TTypeInfoHelper(), arrow20::binary(), *ctx->memory_pool(), length);
             for (size_t i = 0; i < length; ++i) {
                 auto item = reader.GetItem(array, i);
                 if (!item) {
@@ -3009,12 +3023,13 @@ struct TToPgExec {
                 UpdateCleanVarSize((text*)(ptr + sizeof(void*)), ref.Size());
             }
 
-            *res = builder.Build(true);
+            auto datum = builder.Build(true);
+            res->value = datum.array();
             break;
         }
         case NUdf::EDataSlot::Date: {
             auto inputPtr = array.GetValues<ui16>(1);
-            auto outputPtr = res->array()->GetMutableValues<ui64>(1);
+            auto outputPtr = res->array_span_mutable()->buffers[1].mutable_data_as<ui64>();
             for (size_t i = 0; i < length; ++i) {
                 outputPtr[i] = Int32GetDatum(Date2Pg(inputPtr[i]));
             }
@@ -3022,7 +3037,7 @@ struct TToPgExec {
         }
         case NUdf::EDataSlot::Datetime: {
             auto inputPtr = array.GetValues<ui32>(1);
-            auto outputPtr = res->array()->GetMutableValues<ui64>(1);
+            auto outputPtr = res->array_span_mutable()->buffers[1].mutable_data_as<ui64>();
             for (size_t i = 0; i < length; ++i) {
                 outputPtr[i] = Int64GetDatum(Timestamp2Pg(inputPtr[i] * 1000000ull));
             }
@@ -3030,7 +3045,7 @@ struct TToPgExec {
         }
         case NUdf::EDataSlot::Timestamp: {
             auto inputPtr = array.GetValues<ui64>(1);
-            auto outputPtr = res->array()->GetMutableValues<ui64>(1);
+            auto outputPtr = res->array_span_mutable()->buffers[1].mutable_data_as<ui64>();
             for (size_t i = 0; i < length; ++i) {
                 outputPtr[i] = Int64GetDatum(Timestamp2Pg(inputPtr[i]));
             }
@@ -3063,7 +3078,7 @@ struct TToPgExec {
         case NUdf::EDataSlot::Interval:
         case NUdf::EDataSlot::Interval64: {
             NUdf::TFixedSizeBlockReader<i64, true> reader;
-            NUdf::TStringArrayBuilder<arrow::BinaryType, true> builder(NKikimr::NMiniKQL::TTypeInfoHelper(), arrow::binary(), *ctx->memory_pool(), length);
+            NUdf::TStringArrayBuilder<arrow20::BinaryType, true> builder(NKikimr::NMiniKQL::TTypeInfoHelper(), arrow20::binary(), *ctx->memory_pool(), length);
             for (size_t i = 0; i < length; ++i) {
                 auto item = reader.GetItem(array, i);
                 if (!item) {
@@ -3079,13 +3094,14 @@ struct TToPgExec {
                 builder.AddPgItem<false, 0>(ref);
             }
 
-            *res = builder.Build(true);
+            auto datum = builder.Build(true);
+            res->value = datum.array();
             break;
         }
         case NUdf::EDataSlot::Json:
         {
-            NUdf::TStringBlockReader<arrow::BinaryType, true> reader;
-            NUdf::TStringArrayBuilder<arrow::BinaryType, true> builder(NKikimr::NMiniKQL::TTypeInfoHelper(), arrow::binary(), *ctx->memory_pool(), length);
+            NUdf::TStringBlockReader<arrow20::BinaryType, true> reader;
+            NUdf::TStringArrayBuilder<arrow20::BinaryType, true> builder(NKikimr::NMiniKQL::TTypeInfoHelper(), arrow20::binary(), *ctx->memory_pool(), length);
             for (size_t i = 0; i < length; ++i) {
                 auto item = reader.GetItem(array, i);
                 if (!item) {
@@ -3102,13 +3118,14 @@ struct TToPgExec {
                 pfree(res);
             }
 
-            *res = builder.Build(true);
+            auto datum = builder.Build(true);
+            res->value = datum.array();
             break;
         }
         case NUdf::EDataSlot::JsonDocument:
         {
-            NUdf::TStringBlockReader<arrow::BinaryType, true> reader;
-            NUdf::TStringArrayBuilder<arrow::BinaryType, true> builder(NKikimr::NMiniKQL::TTypeInfoHelper(), arrow::binary(), *ctx->memory_pool(), length);
+            NUdf::TStringBlockReader<arrow20::BinaryType, true> reader;
+            NUdf::TStringArrayBuilder<arrow20::BinaryType, true> builder(NKikimr::NMiniKQL::TTypeInfoHelper(), arrow20::binary(), *ctx->memory_pool(), length);
             for (size_t i = 0; i < length; ++i) {
                 auto item = reader.GetItem(array, i);
                 if (!item) {
@@ -3124,26 +3141,27 @@ struct TToPgExec {
                 pfree(res);
             }
 
-            *res = builder.Build(true);
+            auto datum = builder.Build(true);
+            res->value = datum.array();
             break;
         }
         default:
             ythrow yexception() << "Unsupported type: " << NUdf::GetDataTypeInfo(SourceDataSlot).Name;
         }
-        return arrow::Status::OK();
+        return arrow20::Status::OK();
     }
 
     const NUdf::EDataSlot SourceDataSlot;
 };
 
-std::shared_ptr<arrow::compute::ScalarKernel> MakeToPgKernel(TType* inputType, TType* resultType, NUdf::EDataSlot dataSlot) {
+std::shared_ptr<arrow20::compute::ScalarKernel> MakeToPgKernel(TType* inputType, TType* resultType, NUdf::EDataSlot dataSlot) {
     const TVector<TType*> argTypes = { inputType };
 
-    std::shared_ptr<arrow::DataType> returnArrowType;
+    std::shared_ptr<arrow20::DataType> returnArrowType;
     MKQL_ENSURE(ConvertArrowType(AS_TYPE(TBlockType, resultType)->GetItemType(), returnArrowType), "Unsupported arrow type");
     auto exec = std::make_shared<TToPgExec>(dataSlot);
-    auto kernel = std::make_shared<arrow::compute::ScalarKernel>(ConvertToInputTypes(argTypes), ConvertToOutputType(resultType),
-        [exec](arrow::compute::KernelContext* ctx, const arrow::compute::ExecBatch& batch, arrow::Datum* res) {
+    auto kernel = std::make_shared<arrow20::compute::ScalarKernel>(arrow20::compute::KernelSignature::Make(ConvertToInputTypes(argTypes), ConvertToOutputType(resultType)),
+        [exec](arrow20::compute::KernelContext* ctx, const arrow20::compute::ExecSpan& batch, arrow20::compute::ExecResult* res) {
         return exec->Exec(ctx, batch, res);
     });
 
@@ -3173,7 +3191,7 @@ std::shared_ptr<arrow::compute::ScalarKernel> MakeToPgKernel(TType* inputType, T
     case NUdf::EDataSlot::Yson:
     case NUdf::EDataSlot::Json:
     case NUdf::EDataSlot::JsonDocument:
-        kernel->null_handling = arrow::compute::NullHandling::COMPUTED_NO_PREALLOCATE;
+        kernel->null_handling = arrow20::compute::NullHandling::COMPUTED_NO_PREALLOCATE;
         break;
     default:
         ythrow yexception() << "Unsupported type: " << NUdf::GetDataTypeInfo(dataSlot).Name;
@@ -3182,11 +3200,11 @@ std::shared_ptr<arrow::compute::ScalarKernel> MakeToPgKernel(TType* inputType, T
     return kernel;
 }
 
-std::shared_ptr<arrow::compute::ScalarKernel> MakePgKernel(TVector<TType*> argTypes, TType* resultType, TExecFunc execFunc, ui32 procId) {
-    std::shared_ptr<arrow::DataType> returnArrowType;
+std::shared_ptr<arrow20::compute::ScalarKernel> MakePgKernel(TVector<TType*> argTypes, TType* resultType, TExecFunc execFunc, ui32 procId) {
+    std::shared_ptr<arrow20::DataType> returnArrowType;
     MKQL_ENSURE(ConvertArrowType(AS_TYPE(TBlockType, resultType)->GetItemType(), returnArrowType), "Unsupported arrow type");
-    auto kernel = std::make_shared<arrow::compute::ScalarKernel>(ConvertToInputTypes(argTypes), ConvertToOutputType(resultType),
-        [execFunc](arrow::compute::KernelContext* ctx, const arrow::compute::ExecBatch& batch, arrow::Datum* res) {
+    auto kernel = std::make_shared<arrow20::compute::ScalarKernel>(arrow20::compute::KernelSignature::Make(ConvertToInputTypes(argTypes), ConvertToOutputType(resultType)),
+        [execFunc](arrow20::compute::KernelContext* ctx, const arrow20::compute::ExecSpan& batch, arrow20::compute::ExecResult* res) {
         return execFunc(ctx, batch, res);
     });
 
@@ -3202,8 +3220,8 @@ std::shared_ptr<arrow::compute::ScalarKernel> MakePgKernel(TVector<TType*> argTy
         pgArgTypes.push_back(oid);
     }
 
-    kernel->null_handling = arrow::compute::NullHandling::COMPUTED_NO_PREALLOCATE;
-    kernel->init = [procId, pgArgTypes](arrow::compute::KernelContext*, const arrow::compute::KernelInitArgs&) {
+    kernel->null_handling = arrow20::compute::NullHandling::COMPUTED_NO_PREALLOCATE;
+    kernel->init = [procId, pgArgTypes](arrow20::compute::KernelContext*, const arrow20::compute::KernelInitArgs&) {
         auto state = std::make_unique<TPgKernelState>();
         Zero(state->flinfo);
         GetPgFuncAddr(procId, state->flinfo);
@@ -3227,7 +3245,7 @@ std::shared_ptr<arrow::compute::ScalarKernel> MakePgKernel(TVector<TType*> argTy
         state->FmgrDataHolder = fmgrDataHolder;
         state->ProcDesc = &procDesc;
 
-        return arrow::Result(std::move(state));
+        return arrow20::Result(std::move(state));
     };
 
     return kernel;
@@ -4170,9 +4188,9 @@ extern "C" void WriteSkiffPgValue(TPgType* type, const NUdf::TUnboxedValuePod& v
 namespace {
 
 template<typename TScalarGetter, typename TPointerGetter>
-arrow::Datum DoMakePgScalar(const NPg::TTypeDesc& desc, arrow::MemoryPool& pool, const TScalarGetter& getScalar, const TPointerGetter& getPtr) {
+arrow20::Datum DoMakePgScalar(const NPg::TTypeDesc& desc, arrow20::MemoryPool& pool, const TScalarGetter& getScalar, const TPointerGetter& getPtr) {
     if (desc.PassByValue) {
-        return arrow::MakeScalar(getScalar());
+        return arrow20::MakeScalar(getScalar());
     } else {
         const char* ptr = getPtr();
         ui32 size;
@@ -4184,16 +4202,16 @@ arrow::Datum DoMakePgScalar(const NPg::TTypeDesc& desc, arrow::MemoryPool& pool,
             size = desc.TypeLen;
         }
 
-        std::shared_ptr<arrow::Buffer> buffer(ARROW_RESULT(arrow::AllocateBuffer(size + sizeof(void*), &pool)));
+        std::shared_ptr<arrow20::Buffer> buffer(ARROW_RESULT(arrow20::AllocateBuffer(size + sizeof(void*), &pool)));
         NUdf::ZeroMemoryContext(buffer->mutable_data() + sizeof(void*));
         std::memcpy(buffer->mutable_data() + sizeof(void*), ptr, size);
-        return arrow::Datum(std::make_shared<arrow::BinaryScalar>(buffer));
+        return arrow20::Datum(std::make_shared<arrow20::BinaryScalar>(buffer));
     }
 }
 
 } // namespace
 
-arrow::Datum MakePgScalar(NKikimr::NMiniKQL::TPgType* type, const NKikimr::NUdf::TUnboxedValuePod& value, arrow::MemoryPool& pool) {
+arrow20::Datum MakePgScalar(NKikimr::NMiniKQL::TPgType* type, const NKikimr::NUdf::TUnboxedValuePod& value, arrow20::MemoryPool& pool) {
     return DoMakePgScalar(
         NPg::LookupType(type->GetTypeId()), pool,
         [&value]() { return (uint64_t)ScalarDatumFromPod(value); },
@@ -4201,7 +4219,7 @@ arrow::Datum MakePgScalar(NKikimr::NMiniKQL::TPgType* type, const NKikimr::NUdf:
     );
 }
 
-arrow::Datum MakePgScalar(NKikimr::NMiniKQL::TPgType* type, const NUdf::TBlockItem& value, arrow::MemoryPool& pool) {
+arrow20::Datum MakePgScalar(NKikimr::NMiniKQL::TPgType* type, const NUdf::TBlockItem& value, arrow20::MemoryPool& pool) {
     return DoMakePgScalar(
         NPg::LookupType(type->GetTypeId()), pool,
         [&value]() { return (uint64_t)ScalarDatumFromItem(value); },

@@ -8,10 +8,10 @@
 #include <ydb/library/yql/dq/comp_nodes/dq_hash_combine.h>
 #include <yql/essentials/minikql/computation/mkql_block_builder.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/type_fwd.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/array/array_primitive.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/chunked_array.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/array.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/type_fwd.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/array/array_primitive.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/chunked_array.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/array.h>
 
 namespace NKikimr {
 namespace NMiniKQL {
@@ -64,16 +64,16 @@ void UpdateMapFromBlocks(std::unordered_map<std::string, std::vector<ui64>>& map
     size_t valuesCount = values.size() - 2; // exclude the key, exclude the block height column
 
     auto datumKey = TArrowBlock::From(values[0]).GetDatum();
-    std::vector<std::shared_ptr<arrow::UInt64Array>> valueDatums;
+    std::vector<std::shared_ptr<arrow20::UInt64Array>> valueDatums;
 
     for (size_t i = 0; i < valuesCount; ++i) {
-        valueDatums.push_back(TArrowBlock::From(values[i+1]).GetDatum().array_as<arrow::UInt64Array>());
+        valueDatums.push_back(TArrowBlock::From(values[i+1]).GetDatum().array_as<arrow20::UInt64Array>());
     }
 
     int64_t valueOffset = 0;
 
     for (const auto& chunk : datumKey.chunks()) {
-        auto* barray = dynamic_cast<arrow::BinaryArray*>(chunk.get());
+        auto* barray = dynamic_cast<arrow20::BinaryArray*>(chunk.get());
         UNIT_ASSERT(barray != nullptr);
         for (int64_t i = 0; i < barray->length(); ++i) {
             auto key = barray->GetString(i);
@@ -214,7 +214,7 @@ public:
             for (size_t i = 0; i < Types.size(); ++i) {
                 result[i] = Context.HolderFactory.CreateArrowBlock(builders[i]->Build(finish));
             }
-            result[Types.size()] = Context.HolderFactory.CreateArrowBlock(arrow::Datum(static_cast<uint64_t>(count)));
+            result[Types.size()] = Context.HolderFactory.CreateArrowBlock(arrow20::Datum(static_cast<uint64_t>(count)));
             return NUdf::EFetchStatus::Ok;
         } else {
             return NUdf::EFetchStatus::Finish;

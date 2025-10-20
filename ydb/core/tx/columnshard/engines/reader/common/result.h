@@ -45,7 +45,7 @@ public:
         ResultBatch.Cut(limit);
     }
 
-    const arrow::Table& GetResultBatch() const {
+    const arrow20::Table& GetResultBatch() const {
         AFL_VERIFY(!Extracted);
         return *ResultBatch.GetRecordBatch();
     }
@@ -55,7 +55,7 @@ public:
         return ResultBatch.GetRecordsCount();
     }
 
-    std::shared_ptr<arrow::Schema> GetResultSchema() const {
+    std::shared_ptr<arrow20::Schema> GetResultSchema() const {
         AFL_VERIFY(!Extracted);
         return ResultBatch.GetResultSchema();
     }

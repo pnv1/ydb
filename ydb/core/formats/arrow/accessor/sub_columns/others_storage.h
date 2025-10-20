@@ -7,8 +7,8 @@
 
 #include <ydb/library/accessor/accessor.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/array/builder_base.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/array/builder_primitive.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/array/builder_base.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/array/builder_primitive.h>
 
 namespace NKikimr::NArrow::NAccessor::NSubColumns {
 
@@ -42,13 +42,13 @@ public:
         ui32 CurrentIndex = 0;
 
         IChunkedArray::TReader RecordIndexReader;
-        std::shared_ptr<arrow::UInt32Array> RecordIndex;
+        std::shared_ptr<arrow20::UInt32Array> RecordIndex;
 
         IChunkedArray::TReader KeyIndexReader;
-        std::shared_ptr<arrow::UInt32Array> KeyIndex;
+        std::shared_ptr<arrow20::UInt32Array> KeyIndex;
 
         IChunkedArray::TReader ValuesReader;
-        std::shared_ptr<arrow::StringArray> Values;
+        std::shared_ptr<arrow20::StringArray> Values;
 
     public:
         TIterator(const std::shared_ptr<TGeneralContainer>& records)
@@ -59,15 +59,15 @@ public:
             if (RecordsCount) {
                 auto recordIndexChunk = RecordIndexReader.GetReadChunk(0);
                 AFL_VERIFY(recordIndexChunk.GetArray()->length() == RecordsCount);
-                RecordIndex = std::static_pointer_cast<arrow::UInt32Array>(recordIndexChunk.GetArray());
+                RecordIndex = std::static_pointer_cast<arrow20::UInt32Array>(recordIndexChunk.GetArray());
 
                 auto keyIndexChunk = KeyIndexReader.GetReadChunk(0);
                 AFL_VERIFY(keyIndexChunk.GetArray()->length() == RecordsCount);
-                KeyIndex = std::static_pointer_cast<arrow::UInt32Array>(keyIndexChunk.GetArray());
+                KeyIndex = std::static_pointer_cast<arrow20::UInt32Array>(keyIndexChunk.GetArray());
 
                 auto valuesChunk = ValuesReader.GetReadChunk(0);
                 AFL_VERIFY(valuesChunk.GetArray()->length() == RecordsCount);
-                Values = std::static_pointer_cast<arrow::StringArray>(valuesChunk.GetArray());
+                Values = std::static_pointer_cast<arrow20::StringArray>(valuesChunk.GetArray());
             }
 
             CurrentIndex = 0;
@@ -137,10 +137,10 @@ public:
         return Stats;
     }
 
-    static std::shared_ptr<arrow::Schema> GetSchema() {
-        static arrow::FieldVector fields = { std::make_shared<arrow::Field>("record_idx", arrow::uint32()),
-            std::make_shared<arrow::Field>("key", arrow::uint32()), std::make_shared<arrow::Field>("value", arrow::utf8()) };
-        static std::shared_ptr<arrow::Schema> result = std::make_shared<arrow::Schema>(fields);
+    static std::shared_ptr<arrow20::Schema> GetSchema() {
+        static arrow20::FieldVector fields = { std::make_shared<arrow20::Field>("record_idx", arrow20::uint32()),
+            std::make_shared<arrow20::Field>("key", arrow20::uint32()), std::make_shared<arrow20::Field>("value", arrow20::utf8()) };
+        static std::shared_ptr<arrow20::Schema> result = std::make_shared<arrow20::Schema>(fields);
         return result;
     }
 
@@ -149,9 +149,9 @@ public:
         , Records(records) {
         AFL_VERIFY(Records);
         AFL_VERIFY(Records->num_columns() == 3)("count", Records->num_columns());
-        AFL_VERIFY(Records->GetColumnVerified(0)->GetDataType()->id() == arrow::uint32()->id());
-        AFL_VERIFY(Records->GetColumnVerified(1)->GetDataType()->id() == arrow::uint32()->id());
-        AFL_VERIFY(Records->GetColumnVerified(2)->GetDataType()->id() == arrow::utf8()->id());
+        AFL_VERIFY(Records->GetColumnVerified(0)->GetDataType()->id() == arrow20::uint32()->id());
+        AFL_VERIFY(Records->GetColumnVerified(1)->GetDataType()->id() == arrow20::uint32()->id());
+        AFL_VERIFY(Records->GetColumnVerified(2)->GetDataType()->id() == arrow20::utf8()->id());
     }
 
     const std::shared_ptr<IChunkedArray>& GetValuesArray() const {
@@ -180,11 +180,11 @@ public:
 
     class TBuilderWithStats: TNonCopyable {
     private:
-        std::vector<std::unique_ptr<arrow::ArrayBuilder>> Builders;
-        arrow::UInt32Builder* RecordIndex;
-        arrow::UInt32Builder* KeyIndex;
+        std::vector<std::unique_ptr<arrow20::ArrayBuilder>> Builders;
+        arrow20::UInt32Builder* RecordIndex;
+        arrow20::UInt32Builder* KeyIndex;
         std::vector<ui32> RTKeyIndexes;
-        arrow::StringBuilder* Values;
+        arrow20::StringBuilder* Values;
         std::optional<ui32> LastRecordIndex;
         std::optional<ui32> LastKeyIndex;
         ui32 RecordsCount = 0;

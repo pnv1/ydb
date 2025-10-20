@@ -17,11 +17,11 @@
 namespace NKikimr::NArrow::NAccessor {
 
 TConclusion<std::shared_ptr<TSubColumnsArray>> TSubColumnsArray::Make(
-    const std::shared_ptr<IChunkedArray>& sourceArray, const NSubColumns::TSettings& settings, const std::shared_ptr<arrow::DataType>& columnType) {
+    const std::shared_ptr<IChunkedArray>& sourceArray, const NSubColumns::TSettings& settings, const std::shared_ptr<arrow20::DataType>& columnType) {
     AFL_VERIFY(sourceArray);
     NSubColumns::TDataBuilder builder(columnType, settings);
     IChunkedArray::TReader reader(sourceArray);
-    std::vector<std::shared_ptr<arrow::Array>> storage;
+    std::vector<std::shared_ptr<arrow20::Array>> storage;
     for (ui32 i = 0; i < reader.GetRecordsCount();) {
         auto address = reader.GetReadChunk(i);
         storage.emplace_back(address.GetArray());
@@ -35,21 +35,21 @@ TConclusion<std::shared_ptr<TSubColumnsArray>> TSubColumnsArray::Make(
     return builder.Finish();
 }
 
-TSubColumnsArray::TSubColumnsArray(const std::shared_ptr<arrow::DataType>& type, const ui32 recordsCount, const NSubColumns::TSettings& settings)
+TSubColumnsArray::TSubColumnsArray(const std::shared_ptr<arrow20::DataType>& type, const ui32 recordsCount, const NSubColumns::TSettings& settings)
     : TBase(recordsCount, EType::SubColumnsArray, type)
     , ColumnsData(NSubColumns::TColumnsData::BuildEmpty(recordsCount))
     , OthersData(NSubColumns::TOthersData::BuildEmpty())
     , Settings(settings) {
-    AFL_VERIFY(type->id() == arrow::binary()->id())("type", type->ToString())("error", "currently supported JsonDocument only");
+    AFL_VERIFY(type->id() == arrow20::binary()->id())("type", type->ToString())("error", "currently supported JsonDocument only");
 }
 
 TSubColumnsArray::TSubColumnsArray(NSubColumns::TColumnsData&& columns, NSubColumns::TOthersData&& others,
-    const std::shared_ptr<arrow::DataType>& type, const ui32 recordsCount, const NSubColumns::TSettings& settings)
+    const std::shared_ptr<arrow20::DataType>& type, const ui32 recordsCount, const NSubColumns::TSettings& settings)
     : TBase(recordsCount, EType::SubColumnsArray, type)
     , ColumnsData(std::move(columns))
     , OthersData(std::move(others))
     , Settings(settings) {
-    AFL_VERIFY(type->id() == arrow::binary()->id())("type", type->ToString())("error", "currently supported JsonDocument only");
+    AFL_VERIFY(type->id() == arrow20::binary()->id())("type", type->ToString())("error", "currently supported JsonDocument only");
 }
 
 TString TSubColumnsArray::SerializeToString(const TChunkConstructionData& externalInfo) const {
@@ -72,7 +72,7 @@ TString TSubColumnsArray::SerializeToString(const TChunkConstructionData& extern
     ui32 columnIdx = 0;
     TMonotonic pred = TMonotonic::Now();
     for (auto&& i : ColumnsData.GetRecords()->GetColumns()) {
-        TChunkConstructionData cData(GetRecordsCount(), nullptr, arrow::utf8(), externalInfo.GetDefaultSerializer());
+        TChunkConstructionData cData(GetRecordsCount(), nullptr, arrow20::utf8(), externalInfo.GetDefaultSerializer());
         blobRanges.emplace_back(ColumnsData.GetStats().GetAccessorConstructor(columnIdx).SerializeToString(i, cData));
         auto* cInfo = proto.AddKeyColumns();
         cInfo->SetSize(blobRanges.back().size());
@@ -218,7 +218,7 @@ public:
     }
 };
 
-std::shared_ptr<arrow::Array> TSubColumnsArray::BuildBJsonArray(const TColumnConstructionContext& context) const {
+std::shared_ptr<arrow20::Array> TSubColumnsArray::BuildBJsonArray(const TColumnConstructionContext& context) const {
     auto it = BuildUnorderedIterator();
     auto builder = NArrow::MakeBuilder(GetDataType());
     const ui32 start = context.GetStartIndex().value_or(0);
@@ -241,7 +241,7 @@ std::shared_ptr<arrow::Array> TSubColumnsArray::BuildBJsonArray(const TColumnCon
                 TStatusValidator::Validate(builder->AppendNull());
             } else {
                 const TConclusion<NBinaryJson::TBinaryJson> bJson = value.Finish();
-                NArrow::Append<arrow::BinaryType>(*builder, arrow::util::string_view(bJson->data(), bJson->size()));
+                NArrow::Append<arrow20::BinaryType>(*builder, std::string_view(bJson->data(), bJson->size()));
             }
         };
 
@@ -261,12 +261,12 @@ std::shared_ptr<arrow::Array> TSubColumnsArray::BuildBJsonArray(const TColumnCon
     return NArrow::FinishBuilder(std::move(builder));
 }
 
-std::shared_ptr<arrow::ChunkedArray> TSubColumnsArray::DoGetChunkedArray(const TColumnConstructionContext& context) const {
+std::shared_ptr<arrow20::ChunkedArray> TSubColumnsArray::DoGetChunkedArray(const TColumnConstructionContext& context) const {
     auto chunk = BuildBJsonArray(context);
     if (chunk->length()) {
-        return std::make_shared<arrow::ChunkedArray>(chunk);
+        return std::make_shared<arrow20::ChunkedArray>(chunk);
     } else {
-        return std::make_shared<arrow::ChunkedArray>(arrow::ArrayVector(), GetDataType());
+        return std::make_shared<arrow20::ChunkedArray>(arrow20::ArrayVector(), GetDataType());
     }
 }
 

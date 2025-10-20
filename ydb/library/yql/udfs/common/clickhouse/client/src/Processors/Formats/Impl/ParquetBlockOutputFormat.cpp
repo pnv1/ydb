@@ -3,7 +3,7 @@
 #if USE_PARQUET
 
 #include <Formats/FormatFactory.h>
-#include <parquet/arrow/writer.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/parquet/arrow/writer.h>
 #include "ArrowBufferedStreams.h"
 #include "CHColumnToArrowColumn.h"
 
@@ -24,7 +24,7 @@ ParquetBlockOutputFormat::ParquetBlockOutputFormat(WriteBuffer & out_, const Blo
 void ParquetBlockOutputFormat::consume(Chunk chunk)
 {
     const size_t columns_num = chunk.getNumColumns();
-    std::shared_ptr<arrow::Table> arrow_table;
+    std::shared_ptr<arrow20::Table> arrow_table;
 
     if (!ch_column_to_arrow_column)
     {
@@ -38,19 +38,19 @@ void ParquetBlockOutputFormat::consume(Chunk chunk)
     {
         auto sink = std::make_shared<ArrowBufferedOutputStream>(out);
 
-        parquet::WriterProperties::Builder builder;
+        parquet20::WriterProperties::Builder builder;
 #if USE_SNAPPY
-        builder.compression(parquet::Compression::SNAPPY);
+        builder.compression(parquet20::Compression::SNAPPY);
 #endif
         auto props = builder.build();
-        auto status = parquet::arrow::FileWriter::Open(
+        auto result = parquet20::arrow20::FileWriter::Open(
             *arrow_table->schema(),
-            arrow::default_memory_pool(),
+            arrow20::default_memory_pool(),
             sink,
-            props, /*parquet::default_writer_properties(),*/
-            &file_writer);
-        if (!status.ok())
-            throw Exception{"Error while opening a table: " + status.ToString(), ErrorCodes::UNKNOWN_EXCEPTION};
+            props);
+        if (!result.ok())
+            throw Exception{"Error while opening a table: " + result.status().ToString(), ErrorCodes::UNKNOWN_EXCEPTION};
+        file_writer = std::move(*result);
     }
 
     // TODO: calculate row_group_size depending on a number of rows and table size

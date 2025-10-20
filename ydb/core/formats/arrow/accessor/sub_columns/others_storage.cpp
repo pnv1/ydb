@@ -13,12 +13,12 @@ namespace NKikimr::NArrow::NAccessor::NSubColumns {
 TOthersData::TBuilderWithStats::TBuilderWithStats() {
     Builders = NArrow::MakeBuilders(GetSchema());
     AFL_VERIFY(Builders.size() == 3);
-    AFL_VERIFY(Builders[0]->type()->id() == arrow::uint32()->id());
-    AFL_VERIFY(Builders[1]->type()->id() == arrow::uint32()->id());
-    AFL_VERIFY(Builders[2]->type()->id() == arrow::utf8()->id());
-    RecordIndex = static_cast<arrow::UInt32Builder*>(Builders[0].get());
-    KeyIndex = static_cast<arrow::UInt32Builder*>(Builders[1].get());
-    Values = static_cast<arrow::StringBuilder*>(Builders[2].get());
+    AFL_VERIFY(Builders[0]->type()->id() == arrow20::uint32()->id());
+    AFL_VERIFY(Builders[1]->type()->id() == arrow20::uint32()->id());
+    AFL_VERIFY(Builders[2]->type()->id() == arrow20::utf8()->id());
+    RecordIndex = static_cast<arrow20::UInt32Builder*>(Builders[0].get());
+    KeyIndex = static_cast<arrow20::UInt32Builder*>(Builders[1].get());
+    Values = static_cast<arrow20::StringBuilder*>(Builders[2].get());
 }
 
 void TOthersData::TBuilderWithStats::AddImpl(const ui32 recordIndex, const ui32 keyIndex, const std::string_view* value) {
@@ -49,8 +49,8 @@ TOthersData TOthersData::TBuilderWithStats::Finish(const TFinishContext& finishC
     AFL_VERIFY(Builders.size());
     auto arrRecordIndex = NArrow::FinishBuilder(std::move(Builders[0]));
     auto arrValues = NArrow::FinishBuilder(std::move(Builders[2]));
-    AFL_VERIFY(arrRecordIndex->type()->id() == arrow::uint32()->id());
-    auto arrRecordIndexValue = std::static_pointer_cast<arrow::UInt32Array>(arrRecordIndex);
+    AFL_VERIFY(arrRecordIndex->type()->id() == arrow20::uint32()->id());
+    auto arrRecordIndexValue = std::static_pointer_cast<arrow20::UInt32Array>(arrRecordIndex);
     std::optional<TDictStats> resultStats = finishContext.GetActualStats();
     if (finishContext.GetRemap()) {
         for (ui32 idx = 0; idx < RTKeyIndexes.size(); ++idx) {
@@ -78,8 +78,8 @@ TOthersData TOthersData::TBuilderWithStats::Finish(const TFinishContext& finishC
         }
     }
     auto arrKeyIndexes = NArrow::FinishBuilder(std::move(Builders[1]));
-    std::vector<std::shared_ptr<arrow::Array>> arrays = { arrRecordIndex, arrKeyIndexes, arrValues };
-    return TOthersData(*resultStats, std::make_shared<TGeneralContainer>(arrow::RecordBatch::Make(GetSchema(), RecordsCount, arrays)));
+    std::vector<std::shared_ptr<arrow20::Array>> arrays = { arrRecordIndex, arrKeyIndexes, arrValues };
+    return TOthersData(*resultStats, std::make_shared<TGeneralContainer>(arrow20::RecordBatch::Make(GetSchema(), RecordsCount, arrays)));
 }
 
 class TUsedKeysCollection {
@@ -135,8 +135,8 @@ TOthersData TOthersData::ApplyFilter(const TColumnFilter& filter, const TSetting
     ui32 filterIntervalStart = 0;
     ui32 shiftSkippedCount = 0;
     TColumnFilter newFilter = TColumnFilter::BuildAllowFilter();
-    auto recordIndexBuilder = NArrow::MakeBuilder(arrow::uint32());
-    auto valuesBuilder = NArrow::MakeBuilder(arrow::utf8());
+    auto recordIndexBuilder = NArrow::MakeBuilder(arrow20::uint32());
+    auto valuesBuilder = NArrow::MakeBuilder(arrow20::utf8());
     TUsedKeysCollection usedKeys(Stats);
     std::vector<ui32> originalKeys;
     std::optional<ui32> predRecordIndex;
@@ -156,8 +156,8 @@ TOthersData TOthersData::ApplyFilter(const TColumnFilter& filter, const TSetting
                     predRecordIndex = filteredRecordIndex;
                     AFL_VERIFY(filteredRecordIndex < resultRecordsCount)("new_record_index", filteredRecordIndex)("count", resultRecordsCount)(
                         "shift", shiftSkippedCount)("record_index", itOthersData.GetRecordIndex());
-                    NArrow::Append<arrow::UInt32Type>(*recordIndexBuilder, filteredRecordIndex);
-                    NArrow::Append<arrow::StringType>(*valuesBuilder, arrow::util::string_view(itOthersData.GetValue().data(), itOthersData.GetValue().size()));
+                    NArrow::Append<arrow20::UInt32Type>(*recordIndexBuilder, filteredRecordIndex);
+                    NArrow::Append<arrow20::StringType>(*valuesBuilder, std::string_view(itOthersData.GetValue().data(), itOthersData.GetValue().size()));
                     originalKeys.emplace_back(itOthersData.GetKeyIndex());
                     usedKeys.AddKeyInfo(itOthersData.GetKeyIndex(), itOthersData.GetValue());
                 }
@@ -173,9 +173,9 @@ TOthersData TOthersData::ApplyFilter(const TColumnFilter& filter, const TSetting
     }
     auto stats = usedKeys.BuildStats(settings, resultRecordsCount);
     const std::vector<ui32> decoder = usedKeys.BuildDecoder();
-    auto keyIndexBuilder = NArrow::MakeBuilder(arrow::uint32());
+    auto keyIndexBuilder = NArrow::MakeBuilder(arrow20::uint32());
     for (auto&& i : originalKeys) {
-        NArrow::Append<arrow::UInt32Type>(*keyIndexBuilder, decoder[i]);
+        NArrow::Append<arrow20::UInt32Type>(*keyIndexBuilder, decoder[i]);
     }
     auto recordIndexes = NArrow::FinishBuilder(std::move(recordIndexBuilder));
     auto keyIndexes = NArrow::FinishBuilder(std::move(keyIndexBuilder));
@@ -212,15 +212,15 @@ TOthersData TOthersData::Slice(const ui32 offset, const ui32 count, const TSetti
     const TDictStats sliceStats = usedKeys.BuildStats(settings, count);
 
     {
-        auto recordIndexBuilder = NArrow::MakeBuilder(arrow::uint32());
-        auto keyIndexBuilder = NArrow::MakeBuilder(arrow::uint32());
+        auto recordIndexBuilder = NArrow::MakeBuilder(arrow20::uint32());
+        auto keyIndexBuilder = NArrow::MakeBuilder(arrow20::uint32());
         itOthersData.MoveToPosition(*startPosition);
         for (; itOthersData.IsValid() && itOthersData.GetRecordIndex() < offset + count; itOthersData.Next()) {
-            NArrow::Append<arrow::UInt32Type>(*recordIndexBuilder, itOthersData.GetRecordIndex() - offset);
+            NArrow::Append<arrow20::UInt32Type>(*recordIndexBuilder, itOthersData.GetRecordIndex() - offset);
             AFL_VERIFY(itOthersData.GetKeyIndex() < keyIndexDecoder.size());
             const ui32 newKeyIndex = keyIndexDecoder[itOthersData.GetKeyIndex()];
             AFL_VERIFY(newKeyIndex < sliceStats.GetColumnsCount());
-            NArrow::Append<arrow::UInt32Type>(*keyIndexBuilder, keyIndexDecoder[itOthersData.GetKeyIndex()]);
+            NArrow::Append<arrow20::UInt32Type>(*keyIndexBuilder, keyIndexDecoder[itOthersData.GetKeyIndex()]);
         }
         auto recordIndexes = NArrow::FinishBuilder(std::move(recordIndexBuilder));
         auto keyIndexes = NArrow::FinishBuilder(std::move(keyIndexBuilder));
@@ -246,7 +246,7 @@ TOthersData TOthersData::BuildEmpty() {
 std::shared_ptr<IChunkedArray> TOthersData::GetPathAccessor(const std::string_view path, const ui32 recordsCount) const {
     auto idx = Stats.GetKeyIndexOptional(path);
     if (!idx) {
-        return std::make_shared<TSparsedArray>(nullptr, arrow::utf8(), recordsCount);
+        return std::make_shared<TSparsedArray>(nullptr, arrow20::utf8(), recordsCount);
     }
     TColumnFilter filter = TColumnFilter::BuildAllowFilter();
     for (TIterator it(Records); it.IsValid(); it.Next()) {
@@ -256,7 +256,7 @@ std::shared_ptr<IChunkedArray> TOthersData::GetPathAccessor(const std::string_vi
     filter.Apply(recordsFiltered);
     auto table = recordsFiltered->BuildTableVerified(std::set<std::string>({ "record_idx", "value" }));
 
-    TSparsedArray::TBuilder builder(nullptr, arrow::utf8());
+    TSparsedArray::TBuilder builder(nullptr, arrow20::utf8());
     auto batch = ToBatch(table);
     builder.AddChunk(recordsCount, batch->GetColumnByName("record_idx"), batch->GetColumnByName("value"));
     return builder.Finish();

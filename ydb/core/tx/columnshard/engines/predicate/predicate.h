@@ -5,7 +5,7 @@
 
 #include <ydb/library/arrow_kernels/operations.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/record_batch.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/record_batch.h>
 
 namespace NKikimr::NOlap {
 
@@ -15,10 +15,10 @@ private:
     EOperation Operation{ EOperation::Unspecified };
 
 public:
-    static std::shared_ptr<arrow::RecordBatch> CutNulls(const std::shared_ptr<arrow::RecordBatch>& batch);
+    static std::shared_ptr<arrow20::RecordBatch> CutNulls(const std::shared_ptr<arrow20::RecordBatch>& batch);
 
-    std::shared_ptr<arrow::RecordBatch> Batch;
-    bool IsEqualSchema(const std::shared_ptr<arrow::Schema>& schema) const;
+    std::shared_ptr<arrow20::RecordBatch> Batch;
+    bool IsEqualSchema(const std::shared_ptr<arrow20::Schema>& schema) const;
     bool IsEqualTo(const TPredicate& item) const;
 
     NArrow::ECompareType GetCompareType() const {
@@ -73,13 +73,13 @@ public:
 
     static std::pair<TPredicate, TPredicate> DeserializePredicatesRange(
         const TSerializedTableRange& range, const std::vector<std::pair<TString, NScheme::TTypeInfo>>& columns, 
-        const std::shared_ptr<arrow::Schema>& schema);
+        const std::shared_ptr<arrow20::Schema>& schema);
 
     constexpr TPredicate() noexcept = default;
 
-    TPredicate(EOperation op, std::shared_ptr<arrow::RecordBatch> batch) noexcept;
+    TPredicate(EOperation op, std::shared_ptr<arrow20::RecordBatch> batch) noexcept;
 
-    TPredicate(EOperation op, const TString& serializedBatch, const std::shared_ptr<arrow::Schema>& schema);
+    TPredicate(EOperation op, const TString& serializedBatch, const std::shared_ptr<arrow20::Schema>& schema);
 
     friend IOutputStream& operator<<(IOutputStream& out, const TPredicate& pred);
 };

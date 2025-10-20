@@ -303,7 +303,7 @@ public:
                                           : UnaryPreallocatedExecImpl<ui16, TResult, DateCore>;
 
                     builder.Implementation(new TSimpleArrowUdfImpl(argBlockTypes, outputType, block.IsScalar(),
-                                                                   exec, builder, TString(name), arrow::compute::NullHandling::INTERSECTION));
+                                                                   exec, builder, TString(name), arrow20::compute::NullHandling::INTERSECTION));
                 } else {
                     builder.Implementation(new TUnaryOverOptionalImpl<ui16, TResult, DateCore>());
                 }
@@ -317,7 +317,7 @@ public:
                                           : UnaryPreallocatedExecImpl<ui32, TResult, DatetimeCore>;
 
                     builder.Implementation(new TSimpleArrowUdfImpl(argBlockTypes, outputType, block.IsScalar(),
-                                                                   exec, builder, TString(name), arrow::compute::NullHandling::INTERSECTION));
+                                                                   exec, builder, TString(name), arrow20::compute::NullHandling::INTERSECTION));
                 } else {
                     builder.Implementation(new TUnaryOverOptionalImpl<ui32, TResult, DatetimeCore>());
                 }
@@ -331,7 +331,7 @@ public:
                                           : UnaryPreallocatedExecImpl<ui64, TResult, TimestampCore>;
 
                     builder.Implementation(new TSimpleArrowUdfImpl(argBlockTypes, outputType, block.IsScalar(),
-                                                                   exec, builder, TString(name), arrow::compute::NullHandling::INTERSECTION));
+                                                                   exec, builder, TString(name), arrow20::compute::NullHandling::INTERSECTION));
                 } else {
                     builder.Implementation(new TUnaryOverOptionalImpl<ui64, TResult, TimestampCore>());
                 }
@@ -341,7 +341,7 @@ public:
             if (typeId == TDataType<TInterval>::Id) {
                 if (block) {
                     builder.Implementation(new TSimpleArrowUdfImpl(argBlockTypes, outputType, block.IsScalar(),
-                                                                   UnaryPreallocatedExecImpl<i64, TSignedResult, IntervalCore>, builder, TString(name), arrow::compute::NullHandling::INTERSECTION));
+                                                                   UnaryPreallocatedExecImpl<i64, TSignedResult, IntervalCore>, builder, TString(name), arrow20::compute::NullHandling::INTERSECTION));
                 } else {
                     builder.Implementation(new TUnaryOverOptionalImpl<i64, TSignedResult, IntervalCore>());
                 }
@@ -483,7 +483,7 @@ struct TGetTimeComponent {
                     if (typeId == TDataType<TDate>::Id) {
                         if (block) {
                             builder.Implementation(new TSimpleArrowUdfImpl(argBlockTypes, outputType, block.IsScalar(),
-                                                                           UnaryPreallocatedExecImpl<ui16, TFieldStorage, Core<ui16, true, false>>, builder, TString(name), arrow::compute::NullHandling::INTERSECTION));
+                                                                           UnaryPreallocatedExecImpl<ui16, TFieldStorage, Core<ui16, true, false>>, builder, TString(name), arrow20::compute::NullHandling::INTERSECTION));
                         } else {
                             builder.Implementation(new TUnaryOverOptionalImpl<ui16, TFieldStorage, Core<ui16, true, false>>());
                         }
@@ -492,7 +492,7 @@ struct TGetTimeComponent {
                     if (typeId == TDataType<TDatetime>::Id) {
                         if (block) {
                             builder.Implementation(new TSimpleArrowUdfImpl(argBlockTypes, outputType, block.IsScalar(),
-                                                                           UnaryPreallocatedExecImpl<ui32, TFieldStorage, Core<ui32, false, false>>, builder, TString(name), arrow::compute::NullHandling::INTERSECTION));
+                                                                           UnaryPreallocatedExecImpl<ui32, TFieldStorage, Core<ui32, false, false>>, builder, TString(name), arrow20::compute::NullHandling::INTERSECTION));
                         } else {
                             builder.Implementation(new TUnaryOverOptionalImpl<ui32, TFieldStorage, Core<ui32, false, false>>());
                         }
@@ -501,7 +501,7 @@ struct TGetTimeComponent {
                     if (typeId == TDataType<TTimestamp>::Id) {
                         if (block) {
                             builder.Implementation(new TSimpleArrowUdfImpl(argBlockTypes, outputType, block.IsScalar(),
-                                                                           UnaryPreallocatedExecImpl<ui64, TFieldStorage, Core<ui64, false, true>>, builder, TString(name), arrow::compute::NullHandling::INTERSECTION));
+                                                                           UnaryPreallocatedExecImpl<ui64, TFieldStorage, Core<ui64, false, true>>, builder, TString(name), arrow20::compute::NullHandling::INTERSECTION));
                         } else {
                             builder.Implementation(new TUnaryOverOptionalImpl<ui64, TFieldStorage, Core<ui64, false, true>>());
                         }
@@ -833,7 +833,7 @@ public:
 
             if (!typesOnly) {
                 builder.Implementation(new TSimpleArrowUdfImpl({blockArgType}, retType, block.IsScalar(),
-                                                               TSplitKernelExec<TUserDataType>::Do, builder, TString(name), arrow::compute::NullHandling::COMPUTED_NO_PREALLOCATE));
+                                                               TSplitKernelExec<TUserDataType>::Do, builder, TString(name), arrow20::compute::NullHandling::COMPUTED_NO_PREALLOCATE));
             }
         } else {
             builder.Args()->Add<TUserDataType>().Flags(ICallablePayload::TArgumentFlags::AutoMap);
@@ -1292,7 +1292,7 @@ SIMPLE_STRICT_UDF(TMakeTzTimestamp64, TTzTimestamp64(TAutoMap<TResource<TM64Reso
 //         Y_UNUSED(valueBuilder);                                                 \
 //         return TUnboxedValuePod(Get##field(args[0]));                           \
 //     }  \
-//     END_SIMPLE_ARROW_UDF_WITH_NULL_HANDLING(TGet##field, TGet##field##KernelExec::Do, arrow::compute::NullHandling::INTERSECTION);
+//     END_SIMPLE_ARROW_UDF_WITH_NULL_HANDLING(TGet##field, TGet##field##KernelExec::Do, arrow20::compute::NullHandling::INTERSECTION);
 
 template <const char* TUdfName,
           typename TResultType, TResultType (*Accessor)(const TUnboxedValuePod&),
@@ -1533,7 +1533,7 @@ private:
 //     return monthNames.at(idx);
 // }
 
-// struct TGetMonthNameKernelExec : TUnaryKernelExec<TGetMonthNameKernelExec, TReaderTraits::TResource<true>, TStringArrayBuilder<arrow::StringType, false>> {
+// struct TGetMonthNameKernelExec : TUnaryKernelExec<TGetMonthNameKernelExec, TReaderTraits::TResource<true>, TStringArrayBuilder<arrow20::StringType, false>> {
 //     template<typename TSink>
 //     static void Process(const IValueBuilder* valueBuilder, TBlockItem item, const TSink& sink) {
 //         Y_UNUSED(valueBuilder);
@@ -1545,7 +1545,7 @@ private:
 //     Y_UNUSED(valueBuilder);
 //     return GetMonthNameValue<TUnboxedValue>(GetMonth(*args) - 1U);
 // }
-// END_SIMPLE_ARROW_UDF_WITH_NULL_HANDLING(TGetMonthName, TGetMonthNameKernelExec::Do, arrow::compute::NullHandling::INTERSECTION);
+// END_SIMPLE_ARROW_UDF_WITH_NULL_HANDLING(TGetMonthName, TGetMonthNameKernelExec::Do, arrow20::compute::NullHandling::INTERSECTION);
 
 template <const char* TResourceName>
 TUnboxedValue GetMonthName(const IValueBuilder* valueBuilder, const TUnboxedValuePod& arg) {
@@ -1576,7 +1576,7 @@ TUnboxedValue GetMonthName(const IValueBuilder* valueBuilder, const TUnboxedValu
 //     Y_UNUSED(valueBuilder);
 //     return TUnboxedValuePod(GetDay(args[0]));
 // }
-// END_SIMPLE_ARROW_UDF_WITH_NULL_HANDLING(TGetDayOfMonth, TGetDayOfMonthKernelExec::Do, arrow::compute::NullHandling::INTERSECTION);
+// END_SIMPLE_ARROW_UDF_WITH_NULL_HANDLING(TGetDayOfMonth, TGetDayOfMonthKernelExec::Do, arrow20::compute::NullHandling::INTERSECTION);
 
 template <const char* TResourceName>
 TUnboxedValue GetDayOfWeekName(const IValueBuilder* valueBuilder, const TUnboxedValuePod& arg) {
@@ -1591,7 +1591,7 @@ TUnboxedValue GetDayOfWeekName(const IValueBuilder* valueBuilder, const TUnboxed
     return dayNames.at(GetDayOfWeek<TResourceName>(arg) - 1U);
 }
 
-// struct TGetDayOfWeekNameKernelExec : TUnaryKernelExec<TGetDayOfWeekNameKernelExec, TReaderTraits::TResource<true>, TStringArrayBuilder<arrow::StringType, false>> {
+// struct TGetDayOfWeekNameKernelExec : TUnaryKernelExec<TGetDayOfWeekNameKernelExec, TReaderTraits::TResource<true>, TStringArrayBuilder<arrow20::StringType, false>> {
 //     template<typename TSink>
 //     static void Process(const IValueBuilder* valueBuilder, TBlockItem item, const TSink& sink) {
 //         Y_UNUSED(valueBuilder);
@@ -1603,9 +1603,9 @@ TUnboxedValue GetDayOfWeekName(const IValueBuilder* valueBuilder, const TUnboxed
 //     Y_UNUSED(valueBuilder);
 //     return GetDayNameValue<TUnboxedValuePod>(GetDayOfWeek(*args) - 1U);
 // }
-// END_SIMPLE_ARROW_UDF_WITH_NULL_HANDLING(TGetDayOfWeekName, TGetDayOfWeekNameKernelExec::Do, arrow::compute::NullHandling::INTERSECTION);
+// END_SIMPLE_ARROW_UDF_WITH_NULL_HANDLING(TGetDayOfWeekName, TGetDayOfWeekNameKernelExec::Do, arrow20::compute::NullHandling::INTERSECTION);
 
-struct TTGetTimezoneNameKernelExec: TUnaryKernelExec<TTGetTimezoneNameKernelExec, TReaderTraits::TResource<false>, TStringArrayBuilder<arrow::BinaryType, false>> {
+struct TTGetTimezoneNameKernelExec: TUnaryKernelExec<TTGetTimezoneNameKernelExec, TReaderTraits::TResource<false>, TStringArrayBuilder<arrow20::BinaryType, false>> {
     template <typename TSink>
     static void Process(const IValueBuilder* valueBuilder, TBlockItem item, const TSink& sink) {
         Y_UNUSED(valueBuilder);

@@ -6,7 +6,7 @@
 
 #include <ydb/library/accessor/accessor.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/array/array_binary.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/array/array_binary.h>
 #include <ydb/core/formats/arrow/accessor/sparsed/accessor.h>
 
 namespace NKikimr::NArrow::NAccessor::NSubColumns {
@@ -49,7 +49,7 @@ public:
     private:
         ui32 KeyIndex;
         std::shared_ptr<IChunkedArray> GlobalChunkedArray;
-        const arrow::StringArray* CurrentArrayData;
+        const arrow20::StringArray* CurrentArrayData;
         std::optional<IChunkedArray::TFullChunkedArrayAddress> FullArrayAddress;
         std::optional<IChunkedArray::TFullDataAddress> ChunkAddress;
         ui32 CurrentIndex = 0;
@@ -129,7 +129,7 @@ public:
         , Records(data) {
         AFL_VERIFY(Records->num_columns() == Stats.GetColumnsCount())("records", Records->num_columns())("stats", Stats.GetColumnsCount());
         for (auto&& i : Records->GetColumns()) {
-            AFL_VERIFY(i->GetDataType()->id() == arrow::utf8()->id());
+            AFL_VERIFY(i->GetDataType()->id() == arrow20::utf8()->id());
         }
     }
 };

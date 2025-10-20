@@ -230,8 +230,8 @@ public:
     static TIntervalPoint Equal(const NArrow::TSimpleRow& replaceKey) {
         return TIntervalPoint(replaceKey, 0);
     }
-    static TIntervalPoint From(const TPredicateContainer& container, const std::shared_ptr<arrow::Schema>& pkSchema);
-    static TIntervalPoint To(const TPredicateContainer& container, const std::shared_ptr<arrow::Schema>& pkSchema);
+    static TIntervalPoint From(const TPredicateContainer& container, const std::shared_ptr<arrow20::Schema>& pkSchema);
+    static TIntervalPoint To(const TPredicateContainer& container, const std::shared_ptr<arrow20::Schema>& pkSchema);
 
     NJson::TJsonValue DebugJson() const {
         NJson::TJsonValue result = NJson::JSON_MAP;
@@ -348,7 +348,7 @@ public:
         }
     }
 
-    THashSet<ui64> GetAffectedTxIds(const std::shared_ptr<arrow::RecordBatch>& writtenPrimaryKeys) const {
+    THashSet<ui64> GetAffectedTxIds(const std::shared_ptr<arrow20::RecordBatch>& writtenPrimaryKeys) const {
         AFL_VERIFY(writtenPrimaryKeys);
         auto it = IntervalsInfo.begin();
         THashSet<ui64> affectedTxIds;
@@ -414,7 +414,7 @@ public:
         return result;
     }
 
-    THashSet<ui64> GetAffectedTxIds(const TInternalPathId pathId, const std::shared_ptr<arrow::RecordBatch>& batch) const {
+    THashSet<ui64> GetAffectedTxIds(const TInternalPathId pathId, const std::shared_ptr<arrow20::RecordBatch>& batch) const {
         auto it = ReadIntervalsByPathId.find(pathId);
         if (it == ReadIntervalsByPathId.end()) {
             return {};

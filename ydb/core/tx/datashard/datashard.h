@@ -1069,12 +1069,12 @@ namespace TEvDataShard {
 
         // Arrow
 
-        void SetArrowBatch(std::shared_ptr<arrow::RecordBatch>&& batch) {
+        void SetArrowBatch(std::shared_ptr<arrow20::RecordBatch>&& batch) {
             ArrowBatch = std::move(batch);
         }
 
-        std::shared_ptr<arrow::RecordBatch> GetArrowBatch();
-        std::shared_ptr<arrow::RecordBatch> GetArrowBatch() const;
+        std::shared_ptr<arrow20::RecordBatch> GetArrowBatch();
+        std::shared_ptr<arrow20::RecordBatch> GetArrowBatch() const;
 
     private:
         // for local events
@@ -1086,7 +1086,7 @@ namespace TEvDataShard {
         // for remote events to avoid extra copying
         TVector<TSerializedCellVec> RowsSerialized;
 
-        std::shared_ptr<arrow::RecordBatch> ArrowBatch;
+        std::shared_ptr<arrow20::RecordBatch> ArrowBatch;
     };
 
     struct TEvReadContinue : public TEventLocal<TEvReadContinue, TEvDataShard::EvReadContinue> {

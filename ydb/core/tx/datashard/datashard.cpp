@@ -16,7 +16,7 @@
 #include <ydb/library/actors/core/monotonic_provider.h>
 #include <library/cpp/monlib/service/pages/templates.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/api.h>
 
 LWTRACE_USING(DATASHARD_PROVIDER)
 
@@ -4911,11 +4911,11 @@ void TEvDataShard::TEvReadResult::FillRecord() {
     }
 }
 
-std::shared_ptr<arrow::RecordBatch> TEvDataShard::TEvReadResult::GetArrowBatch() const {
+std::shared_ptr<arrow20::RecordBatch> TEvDataShard::TEvReadResult::GetArrowBatch() const {
     return const_cast<TEvDataShard::TEvReadResult*>(this)->GetArrowBatch();
 }
 
-std::shared_ptr<arrow::RecordBatch> TEvDataShard::TEvReadResult::GetArrowBatch() {
+std::shared_ptr<arrow20::RecordBatch> TEvDataShard::TEvReadResult::GetArrowBatch() {
     if (ArrowBatch)
         return ArrowBatch;
 

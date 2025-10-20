@@ -126,11 +126,11 @@ private:
                     for (size_t i = dataCols; i < width - 1; i++) {
                         Cerr << "Creating empty array for output[" << i << "]" << Endl;
                         auto blockItemType = AS_TYPE(TBlockType, ResultItemTypes_[i])->GetItemType();
-                        std::shared_ptr<arrow::DataType> arrowType;
+                        std::shared_ptr<arrow20::DataType> arrowType;
                         MKQL_ENSURE(ConvertArrowType(blockItemType, arrowType), "Failed to convert type to arrow");
-                        auto emptyArray = arrow::MakeArrayOfNull(arrowType, 0);
+                        auto emptyArray = arrow20::MakeArrayOfNull(arrowType, 0);
                         ARROW_OK(emptyArray.status());
-                        output[i] = HolderFactory_.CreateArrowBlock(arrow::Datum(emptyArray.ValueOrDie()));
+                        output[i] = HolderFactory_.CreateArrowBlock(arrow20::Datum(emptyArray.ValueOrDie()));
                     }
                     return NUdf::EFetchStatus::Ok;
                 }
@@ -172,11 +172,11 @@ private:
                     for (size_t i = dataCols; i < width - 1; i++) {
                         Cerr << "Creating empty array for output[" << i << "]" << Endl;
                         auto blockItemType = AS_TYPE(TBlockType, ResultItemTypes_[i])->GetItemType();
-                        std::shared_ptr<arrow::DataType> arrowType;
+                        std::shared_ptr<arrow20::DataType> arrowType;
                         MKQL_ENSURE(ConvertArrowType(blockItemType, arrowType), "Failed to convert type to arrow");
-                        auto emptyArray = arrow::MakeArrayOfNull(arrowType, 0);
+                        auto emptyArray = arrow20::MakeArrayOfNull(arrowType, 0);
                         ARROW_OK(emptyArray.status());
-                        output[i] = HolderFactory_.CreateArrowBlock(arrow::Datum(emptyArray.ValueOrDie()));
+                        output[i] = HolderFactory_.CreateArrowBlock(arrow20::Datum(emptyArray.ValueOrDie()));
                     }
                     return NUdf::EFetchStatus::Ok;
                 }

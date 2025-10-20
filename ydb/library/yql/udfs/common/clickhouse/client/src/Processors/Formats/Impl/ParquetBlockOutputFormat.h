@@ -7,15 +7,15 @@
 #    include <Processors/Formats/IOutputFormat.h>
 #    include <Formats/FormatSettings.h>
 
-namespace arrow
+namespace arrow20
 {
 class Array;
 class DataType;
 }
 
-namespace parquet
+namespace parquet20
 {
-namespace arrow
+namespace arrow20
 {
     class FileWriter;
 }
@@ -40,7 +40,7 @@ public:
 private:
     const FormatSettings format_settings;
 
-    std::unique_ptr<parquet::arrow::FileWriter> file_writer;
+    std::unique_ptr<parquet20::arrow20::FileWriter> file_writer;
     std::unique_ptr<CHColumnToArrowColumn> ch_column_to_arrow_column;
 };
 

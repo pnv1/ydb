@@ -12,7 +12,7 @@
 #include <ydb/library/conclusion/result.h>
 #include <ydb/services/bg_tasks/abstract/interface.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/type.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/type.h>
 #include <library/cpp/object_factory/object_factory.h>
 
 #include <utility>
@@ -275,12 +275,12 @@ public:
     private:
         YDB_READONLY_DEF(TInternalPathId, PathId);
         YDB_READONLY_DEF(std::shared_ptr<IStoragesManager>, Storages);
-        YDB_READONLY_DEF(std::shared_ptr<arrow::Schema>, PKSchema);
+        YDB_READONLY_DEF(std::shared_ptr<arrow20::Schema>, PKSchema);
         YDB_READONLY_DEF(EOptimizerStrategy, DefaultStrategy);
 
     public:
         TBuildContext(
-            const TInternalPathId pathId, const std::shared_ptr<IStoragesManager>& storages, const std::shared_ptr<arrow::Schema>& pkSchema)
+            const TInternalPathId pathId, const std::shared_ptr<IStoragesManager>& storages, const std::shared_ptr<arrow20::Schema>& pkSchema)
             : PathId(pathId)
             , Storages(storages)
             , PKSchema(pkSchema)

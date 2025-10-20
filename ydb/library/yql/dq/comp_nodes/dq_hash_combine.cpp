@@ -831,7 +831,7 @@ private:
     }
 
     bool OpenBlock() {
-        const auto batchLength = TArrowBlock::From(InputBuffer.back()).GetDatum().scalar_as<arrow::UInt64Scalar>().value;
+        const auto batchLength = TArrowBlock::From(InputBuffer.back()).GetDatum().scalar_as<arrow20::UInt64Scalar>().value;
         if (!batchLength) {
             CurrentInputBatchSize = 0;
             CurrentInputBatchPtr = 0;
@@ -1055,7 +1055,7 @@ public:
                 *output[i] = Ctx.HolderFactory.CreateArrowBlock(std::move(datum));
             }
 
-            *output[OutputColumns] = Ctx.HolderFactory.CreateArrowBlock(arrow::Datum(static_cast<uint64_t>(currentBlockSize)));
+            *output[OutputColumns] = Ctx.HolderFactory.CreateArrowBlock(arrow20::Datum(static_cast<uint64_t>(currentBlockSize)));
         }
 
         if (DrainMapIterator == Map->End()) {

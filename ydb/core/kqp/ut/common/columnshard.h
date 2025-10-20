@@ -12,7 +12,7 @@
 #include <ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/table/table.h>
 #include <ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/types/status_codes.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/type.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/type.h>
 
 namespace NKikimr {
 namespace NKqp {
@@ -74,7 +74,7 @@ public:
     public:
         TString BuildQuery() const;
         TString BuildAlterCompressionQuery(const TString& columnName, const TCompression& compression) const;
-        std::shared_ptr<arrow::Schema> GetArrowSchema(const TVector<TColumnSchema>& columns);
+        std::shared_ptr<arrow20::Schema> GetArrowSchema(const TVector<TColumnSchema>& columns);
 
         TColumnTableBase& SetTTL(const TString& columnName, const TString& ttlConf) {
             TTLConf = std::make_pair(columnName, ttlConf);
@@ -84,7 +84,7 @@ public:
     private:
         virtual TString GetObjectType() const = 0;
         TString BuildColumnsStr(const TVector<TColumnSchema>& clumns) const;
-        std::shared_ptr<arrow::Field> BuildField(const TString name, const NScheme::TTypeInfo& typeInfo, bool nullable) const;
+        std::shared_ptr<arrow20::Field> BuildField(const TString name, const NScheme::TTypeInfo& typeInfo, bool nullable) const;
     };
 
     class TColumnTable: public TColumnTableBase {
@@ -117,7 +117,7 @@ public:
     void ResetTiering(const TString& tableName);
     void BulkUpsert(const TColumnTable& table, TTestHelper::TUpdatesBuilder& updates,
         const Ydb::StatusIds_StatusCode& opStatus = Ydb::StatusIds::SUCCESS, const TString& expectedIssuePrefix = {});
-    void BulkUpsert(const TColumnTable& table, std::shared_ptr<arrow::RecordBatch> batch,
+    void BulkUpsert(const TColumnTable& table, std::shared_ptr<arrow20::RecordBatch> batch,
         const Ydb::StatusIds_StatusCode& opStatus = Ydb::StatusIds::SUCCESS);
     void ReadData(const TString& query, const TString& expected, const NYdb::EStatus opStatus = NYdb::EStatus::SUCCESS) const;
     void ExecuteQuery(const TString& query) const;

@@ -3,7 +3,7 @@ LIBRARY()
 ENABLE(YQL_STYLE_CPP)
 
 PEERDIR(
-    contrib/libs/apache/arrow
+    contrib/libs/apache/arrow_next
     library/cpp/yson
     library/cpp/yson/node
 )

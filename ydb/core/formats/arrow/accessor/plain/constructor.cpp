@@ -7,14 +7,14 @@
 #include <ydb/library/formats/arrow/arrow_helpers.h>
 #include <ydb/library/formats/arrow/simple_arrays_cache.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/record_batch.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/table.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/record_batch.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/table.h>
 
 namespace NKikimr::NArrow::NAccessor::NPlain {
 
 TConclusion<std::shared_ptr<IChunkedArray>> TConstructor::DoDeserializeFromString(
     const TString& originalData, const TChunkConstructionData& externalInfo) const {
-    auto schema = std::make_shared<arrow::Schema>(arrow::FieldVector({ std::make_shared<arrow::Field>("val", externalInfo.GetColumnType()) }));
+    auto schema = std::make_shared<arrow20::Schema>(arrow20::FieldVector({ std::make_shared<arrow20::Field>("val", externalInfo.GetColumnType()) }));
     auto result = externalInfo.GetDefaultSerializer()->Deserialize(originalData, schema);
     if (!result.ok()) {
         return TConclusionStatus::Fail(result.status().ToString());
@@ -41,14 +41,14 @@ bool TConstructor::DoDeserializeFromProto(const NKikimrArrowAccessorProto::TCons
 }
 
 TString TConstructor::DoSerializeToString(const std::shared_ptr<IChunkedArray>& columnData, const TChunkConstructionData& externalInfo) const {
-    auto schema = std::make_shared<arrow::Schema>(arrow::FieldVector({ std::make_shared<arrow::Field>("val", externalInfo.GetColumnType()) }));
-    std::shared_ptr<arrow::RecordBatch> rb;
+    auto schema = std::make_shared<arrow20::Schema>(arrow20::FieldVector({ std::make_shared<arrow20::Field>("val", externalInfo.GetColumnType()) }));
+    std::shared_ptr<arrow20::RecordBatch> rb;
     if (columnData->GetType() == IChunkedArray::EType::Array) {
         const auto* arr = static_cast<const TTrivialArray*>(columnData.get());
-        rb = arrow::RecordBatch::Make(schema, columnData->GetRecordsCount(), { arr->GetArray() });
+        rb = arrow20::RecordBatch::Make(schema, columnData->GetRecordsCount(), { arr->GetArray() });
     } else {
         auto chunked = columnData->GetChunkedArray();
-        auto table = arrow::Table::Make(schema, { chunked }, columnData->GetRecordsCount());
+        auto table = arrow20::Table::Make(schema, { chunked }, columnData->GetRecordsCount());
         rb = NArrow::ToBatch(table);
     }
     return externalInfo.GetDefaultSerializer()->SerializePayload(rb);
@@ -60,9 +60,9 @@ TConclusion<std::shared_ptr<IChunkedArray>> TConstructor::DoConstruct(
         return TConclusionStatus::Fail("plain accessor cannot convert types for transfer: " + originalArray->GetDataType()->ToString() + " to " +
                                        externalInfo.GetColumnType()->ToString());
     }
-    auto schema = std::make_shared<arrow::Schema>(arrow::FieldVector({ std::make_shared<arrow::Field>("val", externalInfo.GetColumnType()) }));
+    auto schema = std::make_shared<arrow20::Schema>(arrow20::FieldVector({ std::make_shared<arrow20::Field>("val", externalInfo.GetColumnType()) }));
     auto chunked = originalArray->GetChunkedArray();
-    auto table = arrow::Table::Make(schema, { chunked }, originalArray->GetRecordsCount());
+    auto table = arrow20::Table::Make(schema, { chunked }, originalArray->GetRecordsCount());
     return std::make_shared<TTrivialArray>(NArrow::ToBatch(table)->column(0));
 }
 

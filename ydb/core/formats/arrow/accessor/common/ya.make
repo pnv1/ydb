@@ -1,7 +1,7 @@
 LIBRARY(library-formats-arrow-accessor-common)
 
 PEERDIR(
-    contrib/libs/apache/arrow
+    contrib/libs/apache/arrow_next
     ydb/library/actors/core
 )
 

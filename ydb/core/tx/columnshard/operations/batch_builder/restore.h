@@ -14,11 +14,11 @@ private:
     using TBase = NDataReader::IRestoreTask;
     NEvWrite::TWriteData WriteData;
     std::shared_ptr<IMerger> Merger;
-    NArrow::TContainerWithIndexes<arrow::RecordBatch> IncomingData;
+    NArrow::TContainerWithIndexes<arrow20::RecordBatch> IncomingData;
     const TWritingContext Context;
     virtual std::unique_ptr<TEvColumnShard::TEvInternalScan> DoBuildRequestInitiator() const override;
 
-    virtual TConclusionStatus DoOnDataChunk(const std::shared_ptr<arrow::Table>& data) override;
+    virtual TConclusionStatus DoOnDataChunk(const std::shared_ptr<arrow20::Table>& data) override;
     virtual TConclusionStatus DoOnFinished() override;
     virtual void DoOnError(const TString& errorMessage) override;
     void SendErrorMessage(const TString& errorMessage, const NColumnShard::TEvPrivate::TEvWriteBlobsResult::EErrorClass errorClass);
@@ -35,7 +35,7 @@ public:
     virtual TDuration GetTimeout() const override;
 
     TModificationRestoreTask(NEvWrite::TWriteData&& writeData, const std::shared_ptr<IMerger>& merger,
-        const NArrow::TContainerWithIndexes<arrow::RecordBatch>& incomingData, const TWritingContext& context);
+        const NArrow::TContainerWithIndexes<arrow20::RecordBatch>& incomingData, const TWritingContext& context);
 };
 
 }   // namespace NKikimr::NOlap

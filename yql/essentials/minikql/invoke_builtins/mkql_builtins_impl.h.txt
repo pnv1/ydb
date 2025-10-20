@@ -865,87 +865,87 @@ enum class EPropagateTz {
     FromRight
 };
 
-std::shared_ptr<arrow::DataType> AddTzType(bool addTz, const std::shared_ptr<arrow::DataType>& type);
-std::shared_ptr<arrow::DataType> AddTzType(EPropagateTz propagateTz, const std::shared_ptr<arrow::DataType>& type);
+std::shared_ptr<arrow20::DataType> AddTzType(bool addTz, const std::shared_ptr<arrow20::DataType>& type);
+std::shared_ptr<arrow20::DataType> AddTzType(EPropagateTz propagateTz, const std::shared_ptr<arrow20::DataType>& type);
 
 template <typename T>
-arrow::compute::InputType GetPrimitiveInputArrowType(bool tz = false);
+arrow20::compute::InputType GetPrimitiveInputArrowType(bool tz = false);
 
-arrow::compute::InputType GetPrimitiveInputArrowType(NUdf::EDataSlot slot);
+arrow20::compute::InputType GetPrimitiveInputArrowType(NUdf::EDataSlot slot);
 
 template <typename T>
-arrow::compute::OutputType GetPrimitiveOutputArrowType(bool tz = false);
+arrow20::compute::OutputType GetPrimitiveOutputArrowType(bool tz = false);
 
-arrow::compute::OutputType GetPrimitiveOutputArrowType(NUdf::EDataSlot slot);
+arrow20::compute::OutputType GetPrimitiveOutputArrowType(NUdf::EDataSlot slot);
 
-std::shared_ptr<arrow::Scalar> ExtractTz(bool isTz, const std::shared_ptr<arrow::Scalar>& value);
-std::shared_ptr<arrow::ArrayData> ExtractTz(bool isTz, const std::shared_ptr<arrow::ArrayData>& value);
-std::shared_ptr<arrow::Scalar> WithTz(bool propagateTz, const std::shared_ptr<arrow::Scalar>& input,
-    const std::shared_ptr<arrow::Scalar>& value);
+std::shared_ptr<arrow20::Scalar> ExtractTz(bool isTz, const std::shared_ptr<arrow20::Scalar>& value);
+std::shared_ptr<arrow20::ArrayData> ExtractTz(bool isTz, const std::shared_ptr<arrow20::ArrayData>& value);
+std::shared_ptr<arrow20::Scalar> WithTz(bool propagateTz, const std::shared_ptr<arrow20::Scalar>& input,
+    const std::shared_ptr<arrow20::Scalar>& value);
 
-std::shared_ptr<arrow::Scalar> WithTz(EPropagateTz propagateTz,
-    const std::shared_ptr<arrow::Scalar>& input1,
-    const std::shared_ptr<arrow::Scalar>& input2,
-    const std::shared_ptr<arrow::Scalar>& value);
+std::shared_ptr<arrow20::Scalar> WithTz(EPropagateTz propagateTz,
+    const std::shared_ptr<arrow20::Scalar>& input1,
+    const std::shared_ptr<arrow20::Scalar>& input2,
+    const std::shared_ptr<arrow20::Scalar>& value);
 
-std::shared_ptr<arrow::ArrayData> CopyTzImpl(const std::shared_ptr<arrow::ArrayData>& res, bool propagateTz,
-    const std::shared_ptr<arrow::ArrayData>& input, arrow::MemoryPool* pool,
-    size_t sizeOf, const std::shared_ptr<arrow::DataType>& outputType);
+std::shared_ptr<arrow20::ArrayData> CopyTzImpl(const std::shared_ptr<arrow20::ArrayData>& res, bool propagateTz,
+    const std::shared_ptr<arrow20::ArrayData>& input, arrow20::MemoryPool* pool,
+    size_t sizeOf, const std::shared_ptr<arrow20::DataType>& outputType);
 
 template <typename TOutput>
-inline std::shared_ptr<arrow::ArrayData> CopyTz(const std::shared_ptr<arrow::ArrayData>& res, bool propagateTz,
-    const std::shared_ptr<arrow::ArrayData>& input, arrow::MemoryPool* pool) {
+inline std::shared_ptr<arrow20::ArrayData> CopyTz(const std::shared_ptr<arrow20::ArrayData>& res, bool propagateTz,
+    const std::shared_ptr<arrow20::ArrayData>& input, arrow20::MemoryPool* pool) {
     return CopyTzImpl(res, propagateTz, input, pool, sizeof(TOutput), GetPrimitiveDataType<TOutput>());
 }
 
-std::shared_ptr<arrow::ArrayData> CopyTzImpl(const std::shared_ptr<arrow::ArrayData>& res, EPropagateTz propagateTz,
-    const std::shared_ptr<arrow::ArrayData>& input1,
-    const std::shared_ptr<arrow::Scalar>& input2,
-    arrow::MemoryPool* pool,
-    size_t sizeOf, const std::shared_ptr<arrow::DataType>& outputType);
+std::shared_ptr<arrow20::ArrayData> CopyTzImpl(const std::shared_ptr<arrow20::ArrayData>& res, EPropagateTz propagateTz,
+    const std::shared_ptr<arrow20::ArrayData>& input1,
+    const std::shared_ptr<arrow20::Scalar>& input2,
+    arrow20::MemoryPool* pool,
+    size_t sizeOf, const std::shared_ptr<arrow20::DataType>& outputType);
 
 template <typename TOutput>
-inline std::shared_ptr<arrow::ArrayData> CopyTz(const std::shared_ptr<arrow::ArrayData>& res, EPropagateTz propagateTz,
-    const std::shared_ptr<arrow::ArrayData>& input1,
-    const std::shared_ptr<arrow::Scalar>& input2,
-    arrow::MemoryPool* pool) {
+inline std::shared_ptr<arrow20::ArrayData> CopyTz(const std::shared_ptr<arrow20::ArrayData>& res, EPropagateTz propagateTz,
+    const std::shared_ptr<arrow20::ArrayData>& input1,
+    const std::shared_ptr<arrow20::Scalar>& input2,
+    arrow20::MemoryPool* pool) {
     return CopyTzImpl(res, propagateTz, input1, input2, pool, sizeof(TOutput), GetPrimitiveDataType<TOutput>());
 }
 
-std::shared_ptr<arrow::ArrayData> CopyTzImpl(const std::shared_ptr<arrow::ArrayData>& res, EPropagateTz propagateTz,
-    const std::shared_ptr<arrow::Scalar>& input1,
-    const std::shared_ptr<arrow::ArrayData>& input2,
-    arrow::MemoryPool* pool,
-    size_t sizeOf, const std::shared_ptr<arrow::DataType>& outputType);
+std::shared_ptr<arrow20::ArrayData> CopyTzImpl(const std::shared_ptr<arrow20::ArrayData>& res, EPropagateTz propagateTz,
+    const std::shared_ptr<arrow20::Scalar>& input1,
+    const std::shared_ptr<arrow20::ArrayData>& input2,
+    arrow20::MemoryPool* pool,
+    size_t sizeOf, const std::shared_ptr<arrow20::DataType>& outputType);
 
 template <typename TOutput>
-inline std::shared_ptr<arrow::ArrayData> CopyTz(const std::shared_ptr<arrow::ArrayData>& res, EPropagateTz propagateTz,
-    const std::shared_ptr<arrow::Scalar>& input1,
-    const std::shared_ptr<arrow::ArrayData>& input2,
-    arrow::MemoryPool* pool) {
+inline std::shared_ptr<arrow20::ArrayData> CopyTz(const std::shared_ptr<arrow20::ArrayData>& res, EPropagateTz propagateTz,
+    const std::shared_ptr<arrow20::Scalar>& input1,
+    const std::shared_ptr<arrow20::ArrayData>& input2,
+    arrow20::MemoryPool* pool) {
     return CopyTzImpl(res, propagateTz, input1, input2, pool, sizeof(TOutput), GetPrimitiveDataType<TOutput>());
 }
 
-std::shared_ptr<arrow::ArrayData> CopyTzImpl(const std::shared_ptr<arrow::ArrayData>& res, EPropagateTz propagateTz,
-    const std::shared_ptr<arrow::ArrayData>& input1,
-    const std::shared_ptr<arrow::ArrayData>& input2,
-    arrow::MemoryPool* pool,
-    size_t sizeOf, const std::shared_ptr<arrow::DataType>& outputType);
+std::shared_ptr<arrow20::ArrayData> CopyTzImpl(const std::shared_ptr<arrow20::ArrayData>& res, EPropagateTz propagateTz,
+    const std::shared_ptr<arrow20::ArrayData>& input1,
+    const std::shared_ptr<arrow20::ArrayData>& input2,
+    arrow20::MemoryPool* pool,
+    size_t sizeOf, const std::shared_ptr<arrow20::DataType>& outputType);
 
 template <typename TOutput>
-inline std::shared_ptr<arrow::ArrayData> CopyTz(const std::shared_ptr<arrow::ArrayData>& res, EPropagateTz propagateTz,
-    const std::shared_ptr<arrow::ArrayData>& input1,
-    const std::shared_ptr<arrow::ArrayData>& input2,
-    arrow::MemoryPool* pool) {
+inline std::shared_ptr<arrow20::ArrayData> CopyTz(const std::shared_ptr<arrow20::ArrayData>& res, EPropagateTz propagateTz,
+    const std::shared_ptr<arrow20::ArrayData>& input1,
+    const std::shared_ptr<arrow20::ArrayData>& input2,
+    arrow20::MemoryPool* pool) {
     return CopyTzImpl(res, propagateTz, input1, input2, pool, sizeof(TOutput), GetPrimitiveDataType<TOutput>());
 }
 
 template<class T>
 concept Arithmetic = std::is_arithmetic_v<std::remove_cvref_t<T>> || std::same_as<std::remove_cvref_t<T>, NYql::NDecimal::TInt128>;
 
-using TPrimitiveDataTypeGetter = std::shared_ptr<arrow::DataType>(*)();
-using TPrimitiveDataScalarGetter= arrow::Datum(*)();
-using TPrimitiveDataScalarGetterWithMemPool = arrow::Datum(*)(void** result, arrow::MemoryPool*);
+using TPrimitiveDataTypeGetter = std::shared_ptr<arrow20::DataType>(*)();
+using TPrimitiveDataScalarGetter= arrow20::Datum(*)();
+using TPrimitiveDataScalarGetterWithMemPool = arrow20::Datum(*)(void** result, arrow20::MemoryPool*);
 
 template <Arithmetic T1, Arithmetic T2, Arithmetic TOut>
 using TTypedBinaryScalarFuncPtr = void(*)(const T1*, const T2*, TOut*);
@@ -961,11 +961,11 @@ template <Arithmetic TIn, Arithmetic TOut>
 using TTypedUnaryArrayFuncPtr = void(*)(const TIn*, TOut*, int64_t length, int64_t offset);
 
 template<Arithmetic TIn, Arithmetic TOut>
-arrow::Status ExecScalarImpl(const arrow::compute::ExecBatch& batch, arrow::Datum* res,
+arrow20::Status ExecScalarImpl(const arrow20::compute::ExecBatch& batch, arrow20::Datum* res,
     TPrimitiveDataTypeGetter typeGetter, TPrimitiveDataScalarGetter scalarGetter, TTypedUnaryScalarFuncPtr<TIn, TOut> func,
     bool tz, bool propagateTz) {
     if (const auto& arg = batch.values.front(); !arg.scalar()->is_valid) {
-        *res = arrow::MakeNullScalar(AddTzType(propagateTz, typeGetter()));
+        *res = arrow20::MakeNullScalar(AddTzType(propagateTz, typeGetter()));
     } else {
         const auto argTz = ExtractTz(tz, arg.scalar());
         const auto valPtr = GetPrimitiveScalarValuePtr(*argTz);
@@ -974,12 +974,12 @@ arrow::Status ExecScalarImpl(const arrow::compute::ExecBatch& batch, arrow::Datu
         func(reinterpret_cast<const TIn*>(valPtr), reinterpret_cast<TOut*>(resPtr));
         *res = WithTz(propagateTz, arg.scalar(), resDatum.scalar());
     }
-    return arrow::Status::OK();
+    return arrow20::Status::OK();
 }
 
 template<Arithmetic TIn, Arithmetic TOut>
-arrow::Status ExecArrayImpl(arrow::compute::KernelContext* kernelCtx,
-    const arrow::compute::ExecBatch& batch, arrow::Datum* res,
+arrow20::Status ExecArrayImpl(arrow20::compute::KernelContext* kernelCtx,
+    const arrow20::compute::ExecBatch& batch, arrow20::Datum* res,
     TTypedUnaryArrayFuncPtr<TIn, TOut> func, size_t outputSizeOf, TPrimitiveDataTypeGetter outputTypeGetter,
     bool tz, bool propagateTz) {
     const auto& arg = batch.values.front();
@@ -991,12 +991,12 @@ arrow::Status ExecArrayImpl(arrow::compute::KernelContext* kernelCtx,
     const auto valPtr = arr.buffers[1]->data();
     auto resPtr = resArr.buffers[1]->mutable_data();
     func(reinterpret_cast<const TIn*>(valPtr), reinterpret_cast<TOut*>(resPtr), length, arr.offset);
-    return arrow::Status::OK();
+    return arrow20::Status::OK();
 }
 
 template<Arithmetic TIn, Arithmetic TOut>
-arrow::Status ExecUnaryImpl(arrow::compute::KernelContext* kernelCtx,
-    const arrow::compute::ExecBatch& batch, arrow::Datum* res,
+arrow20::Status ExecUnaryImpl(arrow20::compute::KernelContext* kernelCtx,
+    const arrow20::compute::ExecBatch& batch, arrow20::Datum* res,
     TPrimitiveDataTypeGetter typeGetter, TPrimitiveDataScalarGetter scalarGetter,
     bool tz, bool propagateTz, size_t outputSizeOf,
     TTypedUnaryScalarFuncPtr<TIn, TOut> scalarFunc, TTypedUnaryArrayFuncPtr<TIn, TOut> arrayFunc) {
@@ -1010,14 +1010,14 @@ arrow::Status ExecUnaryImpl(arrow::compute::KernelContext* kernelCtx,
 }
 
 template<Arithmetic T1, Arithmetic T2, Arithmetic TOut>
-arrow::Status ExecScalarScalarImpl(const arrow::compute::ExecBatch& batch, arrow::Datum* res,
+arrow20::Status ExecScalarScalarImpl(const arrow20::compute::ExecBatch& batch, arrow20::Datum* res,
     TPrimitiveDataTypeGetter typeGetter, TPrimitiveDataScalarGetter scalarGetter, TTypedBinaryScalarFuncPtr<T1, T2, TOut> func,
     bool tz1, bool tz2, EPropagateTz propagateTz) {
     MKQL_ENSURE(batch.values.size() == 2, "Expected 2 args");
     const auto& arg1 = batch.values[0];
     const auto& arg2 = batch.values[1];
     if (!arg1.scalar()->is_valid || !arg2.scalar()->is_valid) {
-        *res = arrow::MakeNullScalar(AddTzType(propagateTz, typeGetter()));
+        *res = arrow20::MakeNullScalar(AddTzType(propagateTz, typeGetter()));
     } else {
         const auto arg1tz = ExtractTz(tz1, arg1.scalar());
         const auto arg2tz = ExtractTz(tz2, arg2.scalar());
@@ -1028,12 +1028,12 @@ arrow::Status ExecScalarScalarImpl(const arrow::compute::ExecBatch& batch, arrow
         func(reinterpret_cast<const T1*>(val1Ptr), reinterpret_cast<const T2*>(val2Ptr), reinterpret_cast<TOut*>(resPtr));
         *res = WithTz(propagateTz, arg1.scalar(), arg2.scalar(), resDatum.scalar());
     }
-    return arrow::Status::OK();
+    return arrow20::Status::OK();
 }
 
 template<Arithmetic T1, Arithmetic T2, Arithmetic TOut>
-arrow::Status ExecScalarArrayImpl(arrow::compute::KernelContext* kernelCtx,
-    const arrow::compute::ExecBatch& batch, arrow::Datum* res,
+arrow20::Status ExecScalarArrayImpl(arrow20::compute::KernelContext* kernelCtx,
+    const arrow20::compute::ExecBatch& batch, arrow20::Datum* res,
     TTypedBinaryArrayFuncPtr<T1, T2, TOut> func, size_t outputSizeOf, TPrimitiveDataTypeGetter outputTypeGetter,
     bool tz1, bool tz2, EPropagateTz propagateTz) {
     MKQL_ENSURE(batch.values.size() == 2, "Expected 2 args");
@@ -1050,12 +1050,12 @@ arrow::Status ExecScalarArrayImpl(arrow::compute::KernelContext* kernelCtx,
         auto resPtr = resArr.buffers[1]->mutable_data();
         func(reinterpret_cast<const T1*>(val1Ptr), reinterpret_cast<const T2*>(val2Ptr), reinterpret_cast<TOut*>(resPtr), length, 0, arr2.offset);
     }
-    return arrow::Status::OK();
+    return arrow20::Status::OK();
 }
 
 template<Arithmetic T1, Arithmetic T2, Arithmetic TOut>
-arrow::Status ExecArrayScalarImpl(arrow::compute::KernelContext* kernelCtx,
-    const arrow::compute::ExecBatch& batch, arrow::Datum* res,
+arrow20::Status ExecArrayScalarImpl(arrow20::compute::KernelContext* kernelCtx,
+    const arrow20::compute::ExecBatch& batch, arrow20::Datum* res,
     TTypedBinaryArrayFuncPtr<T1, T2, TOut> func, size_t outputSizeOf, TPrimitiveDataTypeGetter outputTypeGetter,
     bool tz1, bool tz2, EPropagateTz propagateTz) {
     MKQL_ENSURE(batch.values.size() == 2, "Expected 2 args");
@@ -1072,12 +1072,12 @@ arrow::Status ExecArrayScalarImpl(arrow::compute::KernelContext* kernelCtx,
         auto resPtr = resArr.buffers[1]->mutable_data();
         func(reinterpret_cast<const T1*>(val1Ptr), reinterpret_cast<const T2*>(val2Ptr), reinterpret_cast<TOut*>(resPtr), length, arr1.offset, 0);
     }
-    return arrow::Status::OK();
+    return arrow20::Status::OK();
 }
 
 template<Arithmetic T1, Arithmetic T2, Arithmetic TOut>
-arrow::Status ExecArrayArrayImpl(arrow::compute::KernelContext* kernelCtx,
-    const arrow::compute::ExecBatch& batch, arrow::Datum* res,
+arrow20::Status ExecArrayArrayImpl(arrow20::compute::KernelContext* kernelCtx,
+    const arrow20::compute::ExecBatch& batch, arrow20::Datum* res,
     TTypedBinaryArrayFuncPtr<T1, T2, TOut> func, size_t outputSizeOf, TPrimitiveDataTypeGetter outputTypeGetter,
     bool tz1, bool tz2, EPropagateTz propagateTz) {
     MKQL_ENSURE(batch.values.size() == 2, "Expected 2 args");
@@ -1093,12 +1093,12 @@ arrow::Status ExecArrayArrayImpl(arrow::compute::KernelContext* kernelCtx,
     const auto val2Ptr = arr2.buffers[1]->data();
     auto resPtr = resArr.buffers[1]->mutable_data();
     func(reinterpret_cast<const T1*>(val1Ptr), reinterpret_cast<const T2*>(val2Ptr), reinterpret_cast<TOut*>(resPtr), length, arr1.offset, arr2.offset);
-    return arrow::Status::OK();
+    return arrow20::Status::OK();
 }
 
 template<Arithmetic T1, Arithmetic T2, Arithmetic TOut>
-arrow::Status ExecBinaryImpl(arrow::compute::KernelContext* kernelCtx,
-    const arrow::compute::ExecBatch& batch, arrow::Datum* res,
+arrow20::Status ExecBinaryImpl(arrow20::compute::KernelContext* kernelCtx,
+    const arrow20::compute::ExecBatch& batch, arrow20::Datum* res,
     TPrimitiveDataTypeGetter typeGetter, TPrimitiveDataScalarGetter scalarGetter,
     bool tz1, bool tz2, EPropagateTz propagateTz, size_t outputSizeOf,
     TTypedBinaryScalarFuncPtr<T1, T2, TOut> scalarScalarFunc,
@@ -1124,14 +1124,14 @@ arrow::Status ExecBinaryImpl(arrow::compute::KernelContext* kernelCtx,
 }
 
 template<Arithmetic T1, Arithmetic T2, Arithmetic TOut>
-arrow::Status ExecScalarScalarOptImpl(const arrow::compute::ExecBatch& batch, arrow::Datum* res,
+arrow20::Status ExecScalarScalarOptImpl(const arrow20::compute::ExecBatch& batch, arrow20::Datum* res,
     TPrimitiveDataTypeGetter typeGetter, TPrimitiveDataScalarGetter scalarGetter, TTypedBinaryScalarOptFuncPtr<T1, T2, TOut> func,
     bool tz1, bool tz2, EPropagateTz propagateTz) {
     MKQL_ENSURE(batch.values.size() == 2, "Expected 2 args");
     const auto& arg1 = batch.values[0];
     const auto& arg2 = batch.values[1];
     if (!arg1.scalar()->is_valid || !arg2.scalar()->is_valid) {
-        *res = arrow::MakeNullScalar(AddTzType(propagateTz, typeGetter()));
+        *res = arrow20::MakeNullScalar(AddTzType(propagateTz, typeGetter()));
     } else {
         const auto arg1tz = ExtractTz(tz1, arg1.scalar());
         const auto arg2tz = ExtractTz(tz2, arg2.scalar());
@@ -1140,17 +1140,17 @@ arrow::Status ExecScalarScalarOptImpl(const arrow::compute::ExecBatch& batch, ar
         auto resDatum = scalarGetter();
         const auto resPtr = GetPrimitiveScalarValueMutablePtr(*resDatum.scalar());
         if (!func(reinterpret_cast<const T1*>(val1Ptr), reinterpret_cast<const T2*>(val2Ptr), reinterpret_cast<TOut*>(resPtr))) {
-            *res = arrow::MakeNullScalar(AddTzType(propagateTz, typeGetter()));
+            *res = arrow20::MakeNullScalar(AddTzType(propagateTz, typeGetter()));
         } else {
             *res = WithTz(propagateTz, arg1.scalar(), arg2.scalar(), resDatum.scalar());
         }
     }
-    return arrow::Status::OK();
+    return arrow20::Status::OK();
 }
 
 template<Arithmetic T1, Arithmetic T2, Arithmetic TOut>
-arrow::Status ExecScalarArrayOptImpl(arrow::compute::KernelContext* kernelCtx,
-    const arrow::compute::ExecBatch& batch, arrow::Datum* res,
+arrow20::Status ExecScalarArrayOptImpl(arrow20::compute::KernelContext* kernelCtx,
+    const arrow20::compute::ExecBatch& batch, arrow20::Datum* res,
     TTypedBinaryArrayOptFuncPtr<T1, T2, TOut> func, size_t outputSizeOf, TPrimitiveDataTypeGetter outputTypeGetter,
     bool tz1, bool tz2, EPropagateTz propagateTz) {
     MKQL_ENSURE(batch.values.size() == 2, "Expected 2 args");
@@ -1172,12 +1172,12 @@ arrow::Status ExecScalarArrayOptImpl(arrow::compute::KernelContext* kernelCtx,
     } else {
         GetBitmap(resArr, 0).SetBitsTo(false);
     }
-    return arrow::Status::OK();
+    return arrow20::Status::OK();
 }
 
 template<Arithmetic T1, Arithmetic T2, Arithmetic TOut>
-arrow::Status ExecArrayScalarOptImpl(arrow::compute::KernelContext* kernelCtx,
-    const arrow::compute::ExecBatch& batch, arrow::Datum* res,
+arrow20::Status ExecArrayScalarOptImpl(arrow20::compute::KernelContext* kernelCtx,
+    const arrow20::compute::ExecBatch& batch, arrow20::Datum* res,
     TTypedBinaryArrayOptFuncPtr<T1, T2, TOut> func, size_t outputSizeOf, TPrimitiveDataTypeGetter outputTypeGetter,
     bool tz1, bool tz2, EPropagateTz propagateTz) {
     MKQL_ENSURE(batch.values.size() == 2, "Expected 2 args");
@@ -1199,12 +1199,12 @@ arrow::Status ExecArrayScalarOptImpl(arrow::compute::KernelContext* kernelCtx,
     } else {
         GetBitmap(resArr, 0).SetBitsTo(false);
     }
-    return arrow::Status::OK();
+    return arrow20::Status::OK();
 }
 
 template<Arithmetic T1, Arithmetic T2, Arithmetic TOut>
-arrow::Status ExecArrayArrayOptImpl(arrow::compute::KernelContext* kernelCtx,
-    const arrow::compute::ExecBatch& batch, arrow::Datum* res,
+arrow20::Status ExecArrayArrayOptImpl(arrow20::compute::KernelContext* kernelCtx,
+    const arrow20::compute::ExecBatch& batch, arrow20::Datum* res,
     TTypedBinaryArrayOptFuncPtr<T1, T2, TOut> func, size_t outputSizeOf, TPrimitiveDataTypeGetter outputTypeGetter,
     bool tz1, bool tz2, EPropagateTz propagateTz) {
     MKQL_ENSURE(batch.values.size() == 2, "Expected 2 args");
@@ -1225,12 +1225,12 @@ arrow::Status ExecArrayArrayOptImpl(arrow::compute::KernelContext* kernelCtx,
     auto resPtr = resArr.buffers[1]->mutable_data();
     auto resValid = res->array()->GetMutableValues<uint8_t>(0);
     func(reinterpret_cast<const T1*>(val1Ptr), valid1, reinterpret_cast<const T2*>(val2Ptr), valid2, reinterpret_cast<TOut*>(resPtr), resValid, length, arr1.offset, arr2.offset);
-    return arrow::Status::OK();
+    return arrow20::Status::OK();
 }
 
 template<Arithmetic T1, Arithmetic T2, Arithmetic TOut>
-arrow::Status ExecBinaryOptImpl(arrow::compute::KernelContext* kernelCtx,
-    const arrow::compute::ExecBatch& batch, arrow::Datum* res,
+arrow20::Status ExecBinaryOptImpl(arrow20::compute::KernelContext* kernelCtx,
+    const arrow20::compute::ExecBatch& batch, arrow20::Datum* res,
     TPrimitiveDataTypeGetter typeGetter, TPrimitiveDataScalarGetter scalarGetter,
     bool tz1, bool tz2, EPropagateTz propagateTz, size_t outputSizeOf,
     TTypedBinaryScalarOptFuncPtr<T1, T2, TOut> scalarScalarFunc,
@@ -1257,7 +1257,7 @@ arrow::Status ExecBinaryOptImpl(arrow::compute::KernelContext* kernelCtx,
 
 // Decimal function implementations
 template <Arithmetic TOut>
-inline arrow::Status ExecDecimalArrayScalarOptImpl(const arrow::compute::ExecBatch& batch, arrow::Datum* res,
+inline arrow20::Status ExecDecimalArrayScalarOptImpl(const arrow20::compute::ExecBatch& batch, arrow20::Datum* res,
     TTypedBinaryArrayOptFuncPtr<NYql::NDecimal::TInt128, NYql::NDecimal::TInt128, TOut> func) {
     MKQL_ENSURE(batch.values.size() == 2, "Expected 2 args");
     const auto& arg1 = batch.values[0];
@@ -1277,10 +1277,10 @@ inline arrow::Status ExecDecimalArrayScalarOptImpl(const arrow::compute::ExecBat
         GetBitmap(resArr, 0).SetBitsTo(false);
     }
 
-    return arrow::Status::OK();
+    return arrow20::Status::OK();
 }
 template <Arithmetic TOut>
-inline arrow::Status ExecDecimalScalarArrayOptImpl(const arrow::compute::ExecBatch& batch, arrow::Datum* res,
+inline arrow20::Status ExecDecimalScalarArrayOptImpl(const arrow20::compute::ExecBatch& batch, arrow20::Datum* res,
     TTypedBinaryArrayOptFuncPtr<NYql::NDecimal::TInt128, NYql::NDecimal::TInt128, TOut> func) {
     MKQL_ENSURE(batch.values.size() == 2, "Expected 2 args");
     const auto& arg1 = batch.values[0];
@@ -1300,37 +1300,37 @@ inline arrow::Status ExecDecimalScalarArrayOptImpl(const arrow::compute::ExecBat
         GetBitmap(resArr, 0).SetBitsTo(false);
     }
 
-    return arrow::Status::OK();
+    return arrow20::Status::OK();
 }
 
 template <Arithmetic TOut>
-inline arrow::Status ExecDecimalScalarScalarOptImpl(arrow::compute::KernelContext* kernelCtx,
-    const arrow::compute::ExecBatch& batch, arrow::Datum* res,
+inline arrow20::Status ExecDecimalScalarScalarOptImpl(arrow20::compute::KernelContext* kernelCtx,
+    const arrow20::compute::ExecBatch& batch, arrow20::Datum* res,
     TPrimitiveDataTypeGetter typeGetter, TPrimitiveDataScalarGetterWithMemPool scalarGetter,
     TTypedBinaryScalarOptFuncPtr<NYql::NDecimal::TInt128, NYql::NDecimal::TInt128, TOut> func) {
     MKQL_ENSURE(batch.values.size() == 2, "Expected 2 args");
     const auto& arg1 = batch.values[0];
     const auto& arg2 = batch.values[1];
     if (!arg1.scalar()->is_valid || !arg2.scalar()->is_valid) {
-        *res = arrow::MakeNullScalar(typeGetter());
+        *res = arrow20::MakeNullScalar(typeGetter());
     } else {
         const auto val1Ptr = GetStringScalarValue(*arg1.scalar());
         const auto val2Ptr = GetStringScalarValue(*arg2.scalar());
         void* resMem;
         auto resDatum = scalarGetter(&resMem, kernelCtx->memory_pool());
         if (!func(reinterpret_cast<const NYql::NDecimal::TInt128*>(val1Ptr.data()), reinterpret_cast<const NYql::NDecimal::TInt128*>(val2Ptr.data()), reinterpret_cast<TOut*>(resMem))) {
-            *res = arrow::MakeNullScalar(typeGetter());
+            *res = arrow20::MakeNullScalar(typeGetter());
         } else {
             *res = resDatum.scalar();
         }
     }
 
-    return arrow::Status::OK();
+    return arrow20::Status::OK();
 }
 
 template <Arithmetic TOut>
-inline arrow::Status ExecDecimalBinaryOptImpl(arrow::compute::KernelContext* kernelCtx,
-    const arrow::compute::ExecBatch& batch, arrow::Datum* res,
+inline arrow20::Status ExecDecimalBinaryOptImpl(arrow20::compute::KernelContext* kernelCtx,
+    const arrow20::compute::ExecBatch& batch, arrow20::Datum* res,
     TPrimitiveDataTypeGetter typeGetter, TPrimitiveDataScalarGetterWithMemPool scalarGetter,
     size_t outputSizeOf,
     TTypedBinaryScalarOptFuncPtr<NYql::NDecimal::TInt128, NYql::NDecimal::TInt128, TOut> scalarScalarFunc,
@@ -1356,24 +1356,24 @@ inline arrow::Status ExecDecimalBinaryOptImpl(arrow::compute::KernelContext* ker
 }
 
 template <Arithmetic TOut>
-inline arrow::Status ExecDecimalScalarImpl(arrow::compute::KernelContext* kernelCtx,
-    const arrow::compute::ExecBatch& batch, arrow::Datum* res,
+inline arrow20::Status ExecDecimalScalarImpl(arrow20::compute::KernelContext* kernelCtx,
+    const arrow20::compute::ExecBatch& batch, arrow20::Datum* res,
     TPrimitiveDataTypeGetter typeGetter, TTypedUnaryScalarFuncPtr<NYql::NDecimal::TInt128, TOut> func) {
     if (const auto& arg = batch.values.front(); !arg.scalar()->is_valid) {
-        *res = arrow::MakeNullScalar(typeGetter());
+        *res = arrow20::MakeNullScalar(typeGetter());
     } else {
         const auto valPtr = GetPrimitiveScalarValuePtr(*arg.scalar());
-        std::shared_ptr<arrow::Buffer> buffer(ARROW_RESULT(arrow::AllocateBuffer(16, kernelCtx->memory_pool())));
-        auto resDatum = arrow::Datum(std::make_shared<TPrimitiveDataType<NYql::NDecimal::TInt128>::TScalarResult>(buffer));
+        std::shared_ptr<arrow20::Buffer> buffer(ARROW_RESULT(arrow20::AllocateBuffer(16, kernelCtx->memory_pool())));
+        auto resDatum = arrow20::Datum(std::make_shared<TPrimitiveDataType<NYql::NDecimal::TInt128>::TScalarResult>(buffer));
         func(reinterpret_cast<const NYql::NDecimal::TInt128*>(valPtr), reinterpret_cast<TOut*>(buffer->mutable_data()));
         *res = resDatum.scalar();
     }
 
-    return arrow::Status::OK();
+    return arrow20::Status::OK();
 }
 
 template <Arithmetic TOut>
-inline arrow::Status ExecDecimalArrayImpl(const arrow::compute::ExecBatch& batch, arrow::Datum* res,
+inline arrow20::Status ExecDecimalArrayImpl(const arrow20::compute::ExecBatch& batch, arrow20::Datum* res,
     TTypedUnaryArrayFuncPtr<NYql::NDecimal::TInt128, TOut> func) {
     const auto& arg = batch.values.front();
     auto& resArr = *res->array();
@@ -1383,12 +1383,12 @@ inline arrow::Status ExecDecimalArrayImpl(const arrow::compute::ExecBatch& batch
     const auto valPtr = arr.buffers[1]->data();
     auto resPtr = resArr.buffers[1]->mutable_data();
     func(reinterpret_cast<const NYql::NDecimal::TInt128*>(valPtr), reinterpret_cast<TOut*>(resPtr), length, arr.offset);
-    return arrow::Status::OK();
+    return arrow20::Status::OK();
 }
 
 template <Arithmetic TOut>
-inline arrow::Status ExecDecimalUnaryImpl(arrow::compute::KernelContext* kernelCtx,
-    const arrow::compute::ExecBatch& batch, arrow::Datum* res,
+inline arrow20::Status ExecDecimalUnaryImpl(arrow20::compute::KernelContext* kernelCtx,
+    const arrow20::compute::ExecBatch& batch, arrow20::Datum* res,
     TPrimitiveDataTypeGetter typeGetter,
     TTypedUnaryScalarFuncPtr<NYql::NDecimal::TInt128, TOut> scalarFunc, TTypedUnaryArrayFuncPtr<NYql::NDecimal::TInt128, TOut> arrayFunc) {
     MKQL_ENSURE(batch.values.size() == 1, "Expected single argument");
@@ -1457,7 +1457,7 @@ struct TBinaryKernelExecs<TInput1, Tz1, TInput2, Tz2, TOutput, PropagateTz, TFun
         }
     }
 
-    static arrow::Status Exec(arrow::compute::KernelContext* kernelCtx, const arrow::compute::ExecBatch& batch, arrow::Datum* res) {
+    static arrow20::Status Exec(arrow20::compute::KernelContext* kernelCtx, const arrow20::compute::ExecBatch& batch, arrow20::Datum* res) {
         TTypedBinaryScalarFuncPtr scalarScalarFunc = &TFuncInstance::DoPtr;
         TTypedBinaryArrayFuncPtr scalarArrayFunc = &ScalarArrayCore;
         TTypedBinaryArrayFuncPtr arrayScalarFunc = &ArrayScalarCore;
@@ -1506,16 +1506,16 @@ struct TBinaryKernelOptExecsImpl
         Y_UNUSED(valid1);
         Y_UNUSED(offset1);
         for (int64_t i = 0; i < length; ++i, ++val2Ptr, ++resPtr) {
-            if (!valid2 || arrow::BitUtil::GetBit(valid2, i + offset2)) {
+            if (!valid2 || arrow20::bit_util::GetBit(valid2, i + offset2)) {
                 auto resPod = TFuncInstance::Execute(NUdf::TUnboxedValuePod(*val1Ptr), NUdf::TUnboxedValuePod(*val2Ptr));
                 if (resPod) {
                     *resPtr = resPod.template Get<typename TPrimitiveDataType<TOutput>::TLayout>();
-                    arrow::BitUtil::SetBit(resValid, i);
+                    arrow20::bit_util::SetBit(resValid, i);
                     continue;
                 }
             }
 
-            arrow::BitUtil::ClearBit(resValid, i);
+            arrow20::bit_util::ClearBit(resValid, i);
         }
     }
 
@@ -1533,16 +1533,16 @@ struct TBinaryKernelOptExecsImpl
         Y_UNUSED(valid2);
         Y_UNUSED(offset2);
         for (int64_t i = 0; i < length; ++i, ++val1Ptr, ++resPtr) {
-            if (!valid1 || arrow::BitUtil::GetBit(valid1, i + offset1)) {
+            if (!valid1 || arrow20::bit_util::GetBit(valid1, i + offset1)) {
                 auto resPod = TFuncInstance::Execute(NUdf::TUnboxedValuePod(*val1Ptr), NUdf::TUnboxedValuePod(*val2Ptr));
                 if (resPod) {
                     *resPtr = resPod.template Get<typename TPrimitiveDataType<TOutput>::TLayout>();
-                    arrow::BitUtil::SetBit(resValid, i);
+                    arrow20::bit_util::SetBit(resValid, i);
                     continue;
                 }
             }
 
-            arrow::BitUtil::ClearBit(resValid, i);
+            arrow20::bit_util::ClearBit(resValid, i);
         }
     }
 
@@ -1559,17 +1559,17 @@ struct TBinaryKernelOptExecsImpl
         val1Ptr += offset1;
         val2Ptr += offset2;
         for (int64_t i = 0; i < length; ++i, ++val1Ptr, ++val2Ptr, ++resPtr) {
-            if ((!valid1 || arrow::BitUtil::GetBit(valid1, i + offset1)) && 
-                (!valid2 || arrow::BitUtil::GetBit(valid2, i + offset2))) {
+            if ((!valid1 || arrow20::bit_util::GetBit(valid1, i + offset1)) && 
+                (!valid2 || arrow20::bit_util::GetBit(valid2, i + offset2))) {
                 auto resPod = TFuncInstance::Execute(NUdf::TUnboxedValuePod(*val1Ptr), NUdf::TUnboxedValuePod(*val2Ptr));
                 if (resPod) {
                     *resPtr = resPod.template Get<typename TPrimitiveDataType<TOutput>::TLayout>();
-                    arrow::BitUtil::SetBit(resValid, i);
+                    arrow20::bit_util::SetBit(resValid, i);
                     continue;
                 }
             }
 
-            arrow::BitUtil::ClearBit(resValid, i);
+            arrow20::bit_util::ClearBit(resValid, i);
         }
     }
 };
@@ -1578,7 +1578,7 @@ template<typename TInput1, bool Tz1, typename TInput2, bool Tz2, typename TOutpu
         typename TFuncInstance>
 struct TBinaryKernelExecs<TInput1, Tz1, TInput2, Tz2, TOutput, PropagateTz, TFuncInstance, TKernel::ENullMode::AlwaysNull>
 {
-    static arrow::Status Exec(arrow::compute::KernelContext* kernelCtx, const arrow::compute::ExecBatch& batch, arrow::Datum* res) {
+    static arrow20::Status Exec(arrow20::compute::KernelContext* kernelCtx, const arrow20::compute::ExecBatch& batch, arrow20::Datum* res) {
         auto scalarScalarFunc = &TBinaryKernelOptExecsImpl<TInput1, TInput2, TOutput, TFuncInstance>::ScalarScalarCoreOpt;
         auto scalarArrayFunc = &TBinaryKernelOptExecsImpl<TInput1, TInput2, TOutput, TFuncInstance>::ScalarArrayCoreOpt;
         auto arrayScalarFunc = &TBinaryKernelOptExecsImpl<TInput1, TInput2, TOutput, TFuncInstance>::ArrayScalarCoreOpt;
@@ -1597,15 +1597,15 @@ struct TBinaryKernelExecs<TInput1, Tz1, TInput2, Tz2, TOutput, PropagateTz, TFun
 class TPlainKernel : public TKernel {
 public:
     TPlainKernel(const TKernelFamily& family, const std::vector<NUdf::TDataTypeId>& argTypes,
-        NUdf::TDataTypeId returnType, std::unique_ptr<arrow::compute::ScalarKernel>&& arrowKernel,
+        NUdf::TDataTypeId returnType, std::unique_ptr<arrow20::compute::ScalarKernel>&& arrowKernel,
         TKernel::ENullMode nullMode);
 
-    const arrow::compute::ScalarKernel& GetArrowKernel() const final;
-    std::shared_ptr<arrow::compute::ScalarKernel> MakeArrowKernel(const TVector<TType*>& argTypes, TType* resultType) const final;
+    const arrow20::compute::ScalarKernel& GetArrowKernel() const final;
+    std::shared_ptr<arrow20::compute::ScalarKernel> MakeArrowKernel(const TVector<TType*>& argTypes, TType* resultType) const final;
     bool IsPolymorphic() const final;
 
 private:
-    const std::unique_ptr<arrow::compute::ScalarKernel> ArrowKernel;
+    const std::unique_ptr<arrow20::compute::ScalarKernel> ArrowKernel;
 };
 
 template<typename TInput, bool Tz, typename TOutput, bool PropagateTz, class TFuncInstance>
@@ -1627,7 +1627,7 @@ struct TUnaryKernelExecs
         }
     }
 
-    static arrow::Status Exec(arrow::compute::KernelContext* kernelCtx, const arrow::compute::ExecBatch& batch, arrow::Datum* res) {
+    static arrow20::Status Exec(arrow20::compute::KernelContext* kernelCtx, const arrow20::compute::ExecBatch& batch, arrow20::Datum* res) {
         TTypedUnaryScalarFuncPtr func = &TFuncInstance::DoPtr;
         TTypedUnaryArrayFuncPtr arrayFunc = &ArrayCore;
         return ExecUnaryImpl<typename TPrimitiveDataType<TInput>::TLayout, typename TPrimitiveDataType<TOutput>::TLayout>(kernelCtx, batch, res,
@@ -1646,7 +1646,7 @@ struct TUnaryDecimalKernelExecs
     using TInput = NYql::NDecimal::TInt128;
     using TOutput = NYql::NDecimal::TInt128;
 
-    static arrow::Status Exec(arrow::compute::KernelContext* kernelCtx, const arrow::compute::ExecBatch& batch, arrow::Datum* res) {
+    static arrow20::Status Exec(arrow20::compute::KernelContext* kernelCtx, const arrow20::compute::ExecBatch& batch, arrow20::Datum* res) {
         auto func = &TFuncInstance::DoPtr;
         auto arrayFunc = &TUnaryKernelExecs<TInput, false, TOutput, false, TFuncInstance>::ArrayCore;
         return ExecDecimalUnaryImpl(kernelCtx, batch, res,
@@ -1656,7 +1656,7 @@ struct TUnaryDecimalKernelExecs
     }
 };
 
-using TStatelessArrayKernelExec = arrow::Status(*)(arrow::compute::KernelContext*, const arrow::compute::ExecBatch&, arrow::Datum*);
+using TStatelessArrayKernelExec = arrow20::Status(*)(arrow20::compute::KernelContext*, const arrow20::compute::ExecBatch&, arrow20::Datum*);
 
 void AddUnaryKernelImpl(TKernelFamilyBase& owner, NUdf::EDataSlot arg1, NUdf::EDataSlot res,
     TStatelessArrayKernelExec exec, TKernel::ENullMode nullMode);
@@ -1970,7 +1970,7 @@ void AddDateComparisonKernels(TKernelFamilyBase& owner) {
 
 class TDecimalKernel : public TKernel {
 public:
-    struct TKernelState : arrow::compute::KernelState {
+    struct TKernelState : arrow20::compute::KernelState {
         ui8 Precision;
     };
 
@@ -1978,8 +1978,8 @@ public:
         NUdf::TDataTypeId returnType, TStatelessArrayKernelExec exec,
         TKernel::ENullMode nullMode);
 
-    const arrow::compute::ScalarKernel& GetArrowKernel() const final;
-    std::shared_ptr<arrow::compute::ScalarKernel> MakeArrowKernel(const TVector<TType*>& argTypes, TType* resultType) const final;
+    const arrow20::compute::ScalarKernel& GetArrowKernel() const final;
+    std::shared_ptr<arrow20::compute::ScalarKernel> MakeArrowKernel(const TVector<TType*>& argTypes, TType* resultType) const final;
     bool IsPolymorphic() const final;
 
 private:
@@ -1993,14 +1993,14 @@ struct TDecimalKernelExecs
     using TInput2 = NYql::NDecimal::TInt128;
     using TOutput = NYql::NDecimal::TInt128;
 
-    static arrow::Datum ScalarGetter(void** result, arrow::MemoryPool* memory_pool) {
-        std::shared_ptr<arrow::Buffer> buffer(ARROW_RESULT(arrow::AllocateBuffer(16, memory_pool)));
+    static arrow20::Datum ScalarGetter(void** result, arrow20::MemoryPool* memory_pool) {
+        std::shared_ptr<arrow20::Buffer> buffer(ARROW_RESULT(arrow20::AllocateBuffer(16, memory_pool)));
         *result = buffer->mutable_data();
-        return arrow::Datum(std::make_shared<TPrimitiveDataType<NYql::NDecimal::TInt128>::TScalarResult>(buffer));
+        return arrow20::Datum(std::make_shared<TPrimitiveDataType<NYql::NDecimal::TInt128>::TScalarResult>(buffer));
     }
 
     template<ui8 precision>
-    static arrow::Status ExecImpl(arrow::compute::KernelContext* kernelCtx, const arrow::compute::ExecBatch& batch, arrow::Datum* res) {
+    static arrow20::Status ExecImpl(arrow20::compute::KernelContext* kernelCtx, const arrow20::compute::ExecBatch& batch, arrow20::Datum* res) {
         auto scalarScalarFunc = &TBinaryKernelOptExecsImpl<TInput1, TInput2, TOutput, TFuncInstance<precision>>::ScalarScalarCoreOpt;
         auto scalarArrayFunc = &TBinaryKernelOptExecsImpl<TInput1, TInput2, TOutput, TFuncInstance<precision>>::ScalarArrayCoreOpt;
         auto arrayScalarFunc = &TBinaryKernelOptExecsImpl<TInput1, TInput2, TOutput, TFuncInstance<precision>>::ArrayScalarCoreOpt;
@@ -2015,14 +2015,14 @@ struct TDecimalKernelExecs
             arrayArrayFunc);
     }
 
-    using ExecFunc = arrow::Status(*)(arrow::compute::KernelContext* kernelCtx, const arrow::compute::ExecBatch& batch, arrow::Datum* res) ;
+    using ExecFunc = arrow20::Status(*)(arrow20::compute::KernelContext* kernelCtx, const arrow20::compute::ExecBatch& batch, arrow20::Datum* res) ;
 
     template <size_t... Is>
     static constexpr auto GenerateTable(std::index_sequence<Is...>) {
         return std::array<ExecFunc, sizeof...(Is)>{ExecImpl<Is+1>...};
     }
 
-    static arrow::Status Exec(arrow::compute::KernelContext* kernelCtx, const arrow::compute::ExecBatch& batch, arrow::Datum* res) {
+    static arrow20::Status Exec(arrow20::compute::KernelContext* kernelCtx, const arrow20::compute::ExecBatch& batch, arrow20::Datum* res) {
         ui8 precision = static_cast<TDecimalKernel::TKernelState*>(kernelCtx->state())->Precision;
         Y_DEBUG_ABORT_UNLESS(precision >= 1&& precision <= 35);
 
@@ -2051,13 +2051,13 @@ struct TDecimalComparisonKernelExecs
     using TInput2 = NYql::NDecimal::TInt128;
     using TOutput = bool;
 
-    static arrow::Datum ScalarGetter(void** resMem, arrow::MemoryPool*) {
+    static arrow20::Datum ScalarGetter(void** resMem, arrow20::MemoryPool*) {
         auto result = MakeDefaultScalarDatum<TOutput>();
         *resMem = GetPrimitiveScalarValueMutablePtr(*result.scalar());
         return result;
     }
 
-    static arrow::Status Exec(arrow::compute::KernelContext* kernelCtx, const arrow::compute::ExecBatch& batch, arrow::Datum* res) {
+    static arrow20::Status Exec(arrow20::compute::KernelContext* kernelCtx, const arrow20::compute::ExecBatch& batch, arrow20::Datum* res) {
         auto scalarScalarFunc = &TBinaryKernelOptExecsImpl<TInput1, TInput2, TOutput, TFuncInstance>::ScalarScalarCoreOpt;
         auto scalarArrayFunc = &TBinaryKernelOptExecsImpl<TInput1, TInput2, TOutput, TFuncInstance>::ScalarArrayCoreOpt;
         auto arrayScalarFunc = &TBinaryKernelOptExecsImpl<TInput1, TInput2, TOutput, TFuncInstance>::ArrayScalarCoreOpt;

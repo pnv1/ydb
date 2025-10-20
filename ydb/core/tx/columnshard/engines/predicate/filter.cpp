@@ -20,7 +20,7 @@ NKikimr::NArrow::TColumnFilter TPKRangesFilter::BuildFilter(const std::shared_pt
 }
 
 TConclusionStatus TPKRangesFilter::Add(
-    std::shared_ptr<NOlap::TPredicate> f, std::shared_ptr<NOlap::TPredicate> t, const std::shared_ptr<arrow::Schema>& pkSchema) {
+    std::shared_ptr<NOlap::TPredicate> f, std::shared_ptr<NOlap::TPredicate> t, const std::shared_ptr<arrow20::Schema>& pkSchema) {
     if ((!f || f->Empty()) && (!t || t->Empty())) {
         return TConclusionStatus::Success();
     }
@@ -110,28 +110,28 @@ TPKRangesFilter::TPKRangesFilter() {
     SortedRanges.emplace_back(range.DetachResult());
 }
 
-std::shared_ptr<arrow::RecordBatch> TPKRangesFilter::SerializeToRecordBatch(const std::shared_ptr<arrow::Schema>& pkSchema) const {
+std::shared_ptr<arrow20::RecordBatch> TPKRangesFilter::SerializeToRecordBatch(const std::shared_ptr<arrow20::Schema>& pkSchema) const {
     auto fullSchema = NArrow::TStatusValidator::GetValid(
-        pkSchema->AddField(pkSchema->num_fields(), std::make_shared<arrow::Field>(".ydb_operation_type", arrow::uint32())));
+        pkSchema->AddField(pkSchema->num_fields(), std::make_shared<arrow20::Field>(".ydb_operation_type", arrow20::uint32())));
     auto builders = NArrow::MakeBuilders(fullSchema, SortedRanges.size() * 2);
     for (auto&& i : SortedRanges) {
         i.GetPredicateFrom().GetReplaceKey()->AddToBuilders(builders).Validate();
         for (ui32 idx = i.GetPredicateFrom().GetReplaceKey()->GetColumnsCount(); idx < (ui32)pkSchema->num_fields(); ++idx) {
             NArrow::TStatusValidator::Validate(builders[idx]->AppendNull());
         }
-        NArrow::Append<arrow::UInt32Type>(*builders[pkSchema->num_fields()], (ui32)i.GetPredicateFrom().GetCompareType());
+        NArrow::Append<arrow20::UInt32Type>(*builders[pkSchema->num_fields()], (ui32)i.GetPredicateFrom().GetCompareType());
 
         i.GetPredicateTo().GetReplaceKey()->AddToBuilders(builders).Validate();
         for (ui32 idx = i.GetPredicateTo().GetReplaceKey()->GetColumnsCount(); idx < (ui32)pkSchema->num_fields(); ++idx) {
             NArrow::TStatusValidator::Validate(builders[idx]->AppendNull());
         }
-        NArrow::Append<arrow::UInt32Type>(*builders[pkSchema->num_fields()], (ui32)i.GetPredicateTo().GetCompareType());
+        NArrow::Append<arrow20::UInt32Type>(*builders[pkSchema->num_fields()], (ui32)i.GetPredicateTo().GetCompareType());
     }
-    return arrow::RecordBatch::Make(fullSchema, SortedRanges.size() * 2, NArrow::Finish(std::move(builders)));
+    return arrow20::RecordBatch::Make(fullSchema, SortedRanges.size() * 2, NArrow::Finish(std::move(builders)));
 }
 
 std::shared_ptr<NKikimr::NOlap::TPKRangesFilter> TPKRangesFilter::BuildFromRecordBatchLines(
-    const std::shared_ptr<arrow::RecordBatch>& batch) {
+    const std::shared_ptr<arrow20::RecordBatch>& batch) {
     std::shared_ptr<TPKRangesFilter> result = std::make_shared<TPKRangesFilter>();
     for (ui32 i = 0; i < batch->num_rows(); ++i) {
         auto batchRow = batch->Slice(i, 1);
@@ -143,13 +143,13 @@ std::shared_ptr<NKikimr::NOlap::TPKRangesFilter> TPKRangesFilter::BuildFromRecor
 }
 
 std::shared_ptr<NKikimr::NOlap::TPKRangesFilter> TPKRangesFilter::BuildFromRecordBatchFull(
-    const std::shared_ptr<arrow::RecordBatch>& batch, const std::shared_ptr<arrow::Schema>& pkSchema) {
+    const std::shared_ptr<arrow20::RecordBatch>& batch, const std::shared_ptr<arrow20::Schema>& pkSchema) {
     std::shared_ptr<TPKRangesFilter> result = std::make_shared<TPKRangesFilter>();
     auto pkBatch = NArrow::TColumnOperator().Adapt(batch, pkSchema).DetachResult();
     auto c = batch->GetColumnByName(".ydb_operation_type");
     AFL_VERIFY(c);
-    AFL_VERIFY(c->type_id() == arrow::Type::UINT32);
-    auto cUi32 = static_pointer_cast<arrow::UInt32Array>(c);
+    AFL_VERIFY(c->type_id() == arrow20::Type::UINT32);
+    auto cUi32 = static_pointer_cast<arrow20::UInt32Array>(c);
     for (ui32 i = 0; i < batch->num_rows();) {
         std::shared_ptr<NOlap::TPredicate> pFrom;
         std::shared_ptr<NOlap::TPredicate> pTo;
@@ -184,17 +184,17 @@ std::shared_ptr<NKikimr::NOlap::TPKRangesFilter> TPKRangesFilter::BuildFromRecor
 }
 
 std::shared_ptr<NKikimr::NOlap::TPKRangesFilter> TPKRangesFilter::BuildFromString(
-    const TString& data, const std::shared_ptr<arrow::Schema>& pkSchema) {
+    const TString& data, const std::shared_ptr<arrow20::Schema>& pkSchema) {
     auto batch = NArrow::TStatusValidator::GetValid(NArrow::NSerialization::TNativeSerializer().Deserialize(data));
     return BuildFromRecordBatchFull(batch, pkSchema);
 }
 
-TString TPKRangesFilter::SerializeToString(const std::shared_ptr<arrow::Schema>& pkSchema) const {
+TString TPKRangesFilter::SerializeToString(const std::shared_ptr<arrow20::Schema>& pkSchema) const {
     return NArrow::NSerialization::TNativeSerializer().SerializeFull(SerializeToRecordBatch(pkSchema));
 }
 
 TConclusion<TPKRangesFilter> TPKRangesFilter::BuildFromProto(
-    const NKikimrTxDataShard::TEvKqpScan& proto, const std::vector<TNameTypeInfo>& ydbPk, const std::shared_ptr<arrow::Schema>& arrPk) {
+    const NKikimrTxDataShard::TEvKqpScan& proto, const std::vector<TNameTypeInfo>& ydbPk, const std::shared_ptr<arrow20::Schema>& arrPk) {
     TPKRangesFilter result;
     for (auto& protoRange : proto.GetRanges()) {
         auto fromPredicate = std::make_shared<TPredicate>();

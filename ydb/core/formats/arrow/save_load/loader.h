@@ -5,7 +5,7 @@
 #include <ydb/library/accessor/accessor.h>
 #include <ydb/library/formats/arrow/splitter/stats.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/type.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/type.h>
 
 namespace NKikimr::NArrow::NAccessor {
 
@@ -13,8 +13,8 @@ class TColumnLoader {
 private:
     YDB_READONLY_DEF(NSerialization::TSerializerContainer, Serializer);
     YDB_READONLY_DEF(NAccessor::TConstructorContainer, AccessorConstructor);
-    YDB_READONLY_DEF(std::shared_ptr<arrow::Field>, ResultField);
-    YDB_READONLY_DEF(std::shared_ptr<arrow::Scalar>, DefaultValue);
+    YDB_READONLY_DEF(std::shared_ptr<arrow20::Field>, ResultField);
+    YDB_READONLY_DEF(std::shared_ptr<arrow20::Scalar>, DefaultValue);
     const ui32 ColumnId;
 
     TConclusion<std::shared_ptr<IChunkedArray>> BuildAccessor(const TString& originalData, const TChunkConstructionData& chunkData) const;
@@ -29,13 +29,13 @@ public:
     TString DebugString() const;
 
     TColumnLoader(const NSerialization::TSerializerContainer& serializer, const NAccessor::TConstructorContainer& accessorConstructor,
-        const std::shared_ptr<arrow::Field>& resultField, const std::shared_ptr<arrow::Scalar>& defaultValue, const ui32 columnId);
+        const std::shared_ptr<arrow20::Field>& resultField, const std::shared_ptr<arrow20::Scalar>& defaultValue, const ui32 columnId);
 
     ui32 GetColumnId() const {
         return ColumnId;
     }
 
-    const std::shared_ptr<arrow::Field>& GetField() const;
+    const std::shared_ptr<arrow20::Field>& GetField() const;
 
     TChunkConstructionData BuildAccessorContext(const ui32 recordsCount, const std::optional<ui32>& notNullCount = std::nullopt) const;
     std::shared_ptr<IChunkedArray> ApplyVerified(

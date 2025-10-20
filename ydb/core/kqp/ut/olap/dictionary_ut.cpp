@@ -67,7 +67,7 @@ Y_UNIT_TEST_SUITE(KqpOlapDictionary) {
         NArrow::NConstruction::TStringPoolFiller sPool(10, 512);
         std::vector<NArrow::NConstruction::IArrayBuilder::TPtr> builders;
         builders.emplace_back(
-            NArrow::NConstruction::TSimpleArrayConstructor<NArrow::NConstruction::TIntSeqFiller<arrow::UInt64Type>>::BuildNotNullable(
+            NArrow::NConstruction::TSimpleArrayConstructor<NArrow::NConstruction::TIntSeqFiller<arrow20::UInt64Type>>::BuildNotNullable(
                 "pk_int", 0));
         builders.emplace_back(
             std::make_shared<NArrow::NConstruction::TSimpleArrayConstructor<NArrow::NConstruction::TStringPoolFiller>>("data", sPool));

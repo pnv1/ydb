@@ -4,7 +4,7 @@
 
 #include <ydb/library/accessor/accessor.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/type.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/type.h>
 
 namespace NKikimrSchemeOp {
 class TOlapColumnDescription;
@@ -73,7 +73,7 @@ public:
 
 namespace NKikimr::NArrow {
 
-std::vector<std::shared_ptr<arrow::Field>> MakeArrowFields(const std::vector<NTest::TTestColumn>& columns);
-std::shared_ptr<arrow::Schema> MakeArrowSchema(const std::vector<NTest::TTestColumn>& columns);
+std::vector<std::shared_ptr<arrow20::Field>> MakeArrowFields(const std::vector<NTest::TTestColumn>& columns);
+std::shared_ptr<arrow20::Schema> MakeArrowSchema(const std::vector<NTest::TTestColumn>& columns);
 
 }

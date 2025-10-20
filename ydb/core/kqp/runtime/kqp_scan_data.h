@@ -19,9 +19,9 @@
 
 #include <ydb/library/actors/core/log.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/api.h>
 #include <yql/essentials/utils/yql_panic.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/compute/api_vector.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/compute/api_vector.h>
 
 namespace NKikimrTxDataShard {
     class TKqpTransaction_TScanTaskMeta;
@@ -64,15 +64,15 @@ struct TBytesStatistics {
 
 class TBatchDataAccessor {
 private:
-    YDB_READONLY_DEF(std::shared_ptr<arrow::Table>, Batch);
+    YDB_READONLY_DEF(std::shared_ptr<arrow20::Table>, Batch);
     YDB_READONLY_DEF(std::vector<ui32>, DataIndexes);
-    mutable std::shared_ptr<arrow::Table> FilteredBatch;
+    mutable std::shared_ptr<arrow20::Table> FilteredBatch;
 public:
-    std::shared_ptr<arrow::Table> GetFiltered() const {
+    std::shared_ptr<arrow20::Table> GetFiltered() const {
         if (!FilteredBatch) {
             if (DataIndexes.size()) {
                 auto permutation = NArrow::MakeFilterPermutation(DataIndexes);
-                FilteredBatch = NArrow::TStatusValidator::GetValid(arrow::compute::Take(Batch, permutation)).table();
+                FilteredBatch = NArrow::TStatusValidator::GetValid(arrow20::compute::Take(Batch, permutation)).table();
             } else {
                 FilteredBatch = Batch;
             }
@@ -90,7 +90,7 @@ public:
 
     using EBlockTrackingMode = NKikimrConfig::TTableServiceConfig::EBlockTrackingMode;
 
-    TBatchDataAccessor(const std::shared_ptr<arrow::Table>& batch, std::vector<ui32>&& dataIndexes, EBlockTrackingMode mode)
+    TBatchDataAccessor(const std::shared_ptr<arrow20::Table>& batch, std::vector<ui32>&& dataIndexes, EBlockTrackingMode mode)
         : Batch(HandleBatch(mode, batch))
         , DataIndexes(std::move(dataIndexes))
     {
@@ -98,7 +98,7 @@ public:
         AFL_VERIFY(Batch->num_rows());
     }
 
-    TBatchDataAccessor(const std::shared_ptr<arrow::Table>& batch,
+    TBatchDataAccessor(const std::shared_ptr<arrow20::Table>& batch,
         EBlockTrackingMode mode = NKikimrConfig::TTableServiceConfig::BLOCK_TRACKING_NONE)
         : Batch(HandleBatch(mode, batch)) {
         AFL_VERIFY(Batch);
@@ -106,16 +106,16 @@ public:
 
     }
 
-    TBatchDataAccessor(const std::shared_ptr<arrow::RecordBatch>& batch,
+    TBatchDataAccessor(const std::shared_ptr<arrow20::RecordBatch>& batch,
         EBlockTrackingMode mode = NKikimrConfig::TTableServiceConfig::BLOCK_TRACKING_NONE)
-        : Batch(HandleBatch(mode, NArrow::TStatusValidator::GetValid(arrow::Table::FromRecordBatches({batch})))) {
+        : Batch(HandleBatch(mode, NArrow::TStatusValidator::GetValid(arrow20::Table::FromRecordBatches({batch})))) {
         AFL_VERIFY(Batch);
         AFL_VERIFY(Batch->num_rows());
 
     }
 
 private:
-    static inline std::shared_ptr<arrow::Table> HandleBatch(EBlockTrackingMode mode, const std::shared_ptr<arrow::Table>& batch) {
+    static inline std::shared_ptr<arrow20::Table> HandleBatch(EBlockTrackingMode mode, const std::shared_ptr<arrow20::Table>& batch) {
         switch(mode) {
             case NKikimrConfig::TTableServiceConfig::BLOCK_TRACKING_NONE:
                 return batch;

@@ -11,7 +11,7 @@
 #include <ydb/library/conclusion/result.h>
 #include <ydb/library/formats/arrow/replace_key.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/record_batch.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/record_batch.h>
 
 #include <optional>
 
@@ -38,7 +38,7 @@ private:
 
     static std::partial_ordering ComparePredicatesSamePrefix(const NOlap::TPredicate& l, const NOlap::TPredicate& r);
 
-    static std::shared_ptr<NArrow::TSimpleRow> ExtractKey(const NOlap::TPredicate& predicate, const std::shared_ptr<arrow::Schema>& key) {
+    static std::shared_ptr<NArrow::TSimpleRow> ExtractKey(const NOlap::TPredicate& predicate, const std::shared_ptr<arrow20::Schema>& key) {
         AFL_VERIFY(predicate.Batch);
         const auto& batchFields = predicate.Batch->schema()->fields();
         const auto& keyFields = key->fields();
@@ -50,7 +50,7 @@ private:
     }
 
 public:
-    bool IsSchemaEqualTo(const std::shared_ptr<arrow::Schema>& schema) const {
+    bool IsSchemaEqualTo(const std::shared_ptr<arrow20::Schema>& schema) const {
         if (!Object) {
             return false;
         }
@@ -91,7 +91,7 @@ public:
 
     TString DebugString() const;
 
-    int MatchScalar(const ui32 columnIdx, const std::shared_ptr<arrow::Scalar>& s) const;
+    int MatchScalar(const ui32 columnIdx, const std::shared_ptr<arrow20::Scalar>& s) const;
 
     const std::vector<TString>& GetColumnNames() const;
 
@@ -106,14 +106,14 @@ public:
     }
 
     static TConclusion<TPredicateContainer> BuildPredicateFrom(
-        std::shared_ptr<NOlap::TPredicate> object, const std::shared_ptr<arrow::Schema>& pkSchema);
+        std::shared_ptr<NOlap::TPredicate> object, const std::shared_ptr<arrow20::Schema>& pkSchema);
 
     static TPredicateContainer BuildNullPredicateTo() {
         return TPredicateContainer(NArrow::ECompareType::LESS_OR_EQUAL);
     }
 
     static TConclusion<TPredicateContainer> BuildPredicateTo(
-        std::shared_ptr<NOlap::TPredicate> object, const std::shared_ptr<arrow::Schema>& pkSchema);
+        std::shared_ptr<NOlap::TPredicate> object, const std::shared_ptr<arrow20::Schema>& pkSchema);
 
     NArrow::TColumnFilter BuildFilter(const std::shared_ptr<NArrow::TGeneralContainer>& data) const;
 

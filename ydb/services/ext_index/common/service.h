@@ -3,7 +3,7 @@
 
 #include <ydb/library/accessor/accessor.h>
 #include <ydb/library/actors/core/event_local.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/record_batch.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/record_batch.h>
 #include <shared_mutex>
 
 namespace NKikimr::NCSIndex {
@@ -18,11 +18,11 @@ public:
 
 class TEvAddData: public NActors::TEventLocal<TEvAddData, EEvents::EvAddData> {
 private:
-    YDB_READONLY_DEF(std::shared_ptr<arrow::RecordBatch>, Data);
+    YDB_READONLY_DEF(std::shared_ptr<arrow20::RecordBatch>, Data);
     YDB_READONLY_DEF(TString, TablePath);
     YDB_READONLY_DEF(IDataUpsertController::TPtr, ExternalController);
 public:
-    TEvAddData(std::shared_ptr<arrow::RecordBatch> data, const TString& tablePath, IDataUpsertController::TPtr externalController)
+    TEvAddData(std::shared_ptr<arrow20::RecordBatch> data, const TString& tablePath, IDataUpsertController::TPtr externalController)
         : Data(data)
         , TablePath(tablePath)
         , ExternalController(externalController)

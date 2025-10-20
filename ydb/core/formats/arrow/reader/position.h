@@ -7,9 +7,9 @@
 #include <ydb/library/accessor/accessor.h>
 #include <ydb/library/actors/core/log.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/array/array_base.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/record_batch.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/type.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/array/array_base.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/record_batch.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/type.h>
 #include <library/cpp/json/writer/json_value.h>
 #include <util/system/types.h>
 
@@ -25,7 +25,7 @@ private:
 
 public:
     TCursor() = default;
-    TCursor(const std::shared_ptr<arrow::Table>& table, const ui64 position, const std::vector<std::string>& columns);
+    TCursor(const std::shared_ptr<arrow20::Table>& table, const ui64 position, const std::vector<std::string>& columns);
 
     TCursor(const ui64 position, const std::vector<NAccessor::IChunkedArray::TFullDataAddress>& addresses)
         : Position(position)
@@ -41,18 +41,18 @@ public:
         return result;
     }
 
-    std::shared_ptr<arrow::RecordBatch> ExtractSortingPosition(const std::vector<std::shared_ptr<arrow::Field>>& fields) const {
+    std::shared_ptr<arrow20::RecordBatch> ExtractSortingPosition(const std::vector<std::shared_ptr<arrow20::Field>>& fields) const {
         AFL_VERIFY(fields.size() == PositionAddress.size());
-        std::vector<std::shared_ptr<arrow::Array>> columns;
-        std::shared_ptr<arrow::Schema> schema = std::make_shared<arrow::Schema>(fields);
+        std::vector<std::shared_ptr<arrow20::Array>> columns;
+        std::shared_ptr<arrow20::Schema> schema = std::make_shared<arrow20::Schema>(fields);
         for (ui32 i = 0; i < PositionAddress.size(); ++i) {
             auto extracted = PositionAddress[i].CopyRecord(Position);
             columns.emplace_back(extracted);
         }
-        return arrow::RecordBatch::Make(schema, 1, columns);
+        return arrow20::RecordBatch::Make(schema, 1, columns);
     }
 
-    void AppendPositionTo(const std::vector<std::unique_ptr<arrow::ArrayBuilder>>& builders, ui64* recordSize) const;
+    void AppendPositionTo(const std::vector<std::unique_ptr<arrow20::ArrayBuilder>>& builders, ui64* recordSize) const;
 
     std::partial_ordering Compare(const TSortableScanData& item, const ui64 itemPosition) const;
     std::partial_ordering Compare(const TCursor& item) const;
@@ -65,7 +65,7 @@ private:
     ui64 RecordsCount = 0;
     YDB_READONLY_DEF(std::vector<NAccessor::IChunkedArray::TFullDataAddress>, PositionAddress);
     YDB_READONLY_DEF(std::vector<std::shared_ptr<NAccessor::IChunkedArray>>, Columns);
-    YDB_READONLY_DEF(std::vector<std::shared_ptr<arrow::Field>>, Fields);
+    YDB_READONLY_DEF(std::vector<std::shared_ptr<arrow20::Field>>, Fields);
     ui64 StartPosition = 0;
     ui64 FinishPosition = 0;
     void BuildPosition(const ui64 position);
@@ -111,21 +111,21 @@ private:
     }
 
 public:
-    TSortableScanData(const ui64 position, const std::shared_ptr<arrow::RecordBatch>& batch);
-    TSortableScanData(const ui64 position, const std::shared_ptr<arrow::RecordBatch>& batch, const std::vector<std::string>& columns);
-    TSortableScanData(const ui64 position, const std::shared_ptr<arrow::Table>& batch, const std::vector<std::string>& columns);
+    TSortableScanData(const ui64 position, const std::shared_ptr<arrow20::RecordBatch>& batch);
+    TSortableScanData(const ui64 position, const std::shared_ptr<arrow20::RecordBatch>& batch, const std::vector<std::string>& columns);
+    TSortableScanData(const ui64 position, const std::shared_ptr<arrow20::Table>& batch, const std::vector<std::string>& columns);
     TSortableScanData(const ui64 position, const std::shared_ptr<TGeneralContainer>& batch, const std::vector<std::string>& columns);
     TSortableScanData(const ui64 position, const std::shared_ptr<TGeneralContainer>& batch);
     TSortableScanData(const ui64 position, const ui64 recordsCount, const std::vector<std::shared_ptr<NAccessor::IChunkedArray>>& columns,
-        const std::vector<std::shared_ptr<arrow::Field>>& fields)
+        const std::vector<std::shared_ptr<arrow20::Field>>& fields)
         : RecordsCount(recordsCount)
         , Columns(columns)
         , Fields(fields) {
         BuildPosition(position);
     }
 
-    TSortableScanData(const ui64 position, const ui64 recordsCount, const std::vector<std::shared_ptr<arrow::Array>>& columns,
-        const std::vector<std::shared_ptr<arrow::Field>>& fields);
+    TSortableScanData(const ui64 position, const ui64 recordsCount, const std::vector<std::shared_ptr<arrow20::Array>>& columns,
+        const std::vector<std::shared_ptr<arrow20::Field>>& fields);
 
     const NAccessor::IChunkedArray::TFullDataAddress& GetPositionAddress(const ui32 colIdx) const {
         AFL_VERIFY(colIdx < PositionAddress.size());
@@ -165,19 +165,19 @@ public:
         return CompareImpl(position, item, itemPosition, std::min<ui32>(PositionAddress.size(), item.PositionAddress.size()));
     }
 
-    void AppendPositionTo(const std::vector<std::unique_ptr<arrow::ArrayBuilder>>& builders, const ui64 position, ui64* recordSize) const;
+    void AppendPositionTo(const std::vector<std::unique_ptr<arrow20::ArrayBuilder>>& builders, const ui64 position, ui64* recordSize) const;
 
     [[nodiscard]] bool InitPosition(const ui64 position);
 
-    std::shared_ptr<arrow::Table> Slice(const ui64 offset, const ui64 count) const {
-        std::vector<std::shared_ptr<arrow::ChunkedArray>> slicedArrays;
+    std::shared_ptr<arrow20::Table> Slice(const ui64 offset, const ui64 count) const {
+        std::vector<std::shared_ptr<arrow20::ChunkedArray>> slicedArrays;
         for (auto&& i : Columns) {
             slicedArrays.emplace_back(i->Slice(offset, count));
         }
-        return arrow::Table::Make(std::make_shared<arrow::Schema>(Fields), slicedArrays, count);
+        return arrow20::Table::Make(std::make_shared<arrow20::Schema>(Fields), slicedArrays, count);
     }
 
-    bool IsSameSchema(const arrow::Schema& schema) const {
+    bool IsSameSchema(const arrow20::Schema& schema) const {
         if (Fields.size() != (size_t)schema.num_fields()) {
             return false;
         }
@@ -262,7 +262,7 @@ public:
         return Data->BuildCursor(Position);
     }
 
-    const std::vector<std::shared_ptr<arrow::Field>>& GetSortFields() const {
+    const std::vector<std::shared_ptr<arrow20::Field>>& GetSortFields() const {
         return Sorting->GetFields();
     }
 
@@ -276,12 +276,12 @@ public:
 
     TRWSortableBatchPosition BuildRWPosition(const bool needData, const bool deepCopy) const;
 
-    std::shared_ptr<arrow::Table> SliceData(const ui64 offset, const ui64 count) const {
+    std::shared_ptr<arrow20::Table> SliceData(const ui64 offset, const ui64 count) const {
         AFL_VERIFY(Data);
         return Data->Slice(offset, count);
     }
 
-    std::shared_ptr<arrow::Table> SliceKeys(const ui64 offset, const ui64 count) const {
+    std::shared_ptr<arrow20::Table> SliceKeys(const ui64 offset, const ui64 count) const {
         AFL_VERIFY(Sorting);
         return Sorting->Slice(offset, count);
     }
@@ -346,7 +346,7 @@ public:
         return 0 <= position && position < RecordsCount;
     }
 
-    static std::optional<TFoundPosition> FindBound(const std::shared_ptr<arrow::RecordBatch>& batch, const TSortableBatchPosition& forFound,
+    static std::optional<TFoundPosition> FindBound(const std::shared_ptr<arrow20::RecordBatch>& batch, const TSortableBatchPosition& forFound,
         const bool needGreater, const std::optional<ui32> includedStartPosition);
     static std::optional<TSortableBatchPosition::TFoundPosition> FindBound(TRWSortableBatchPosition& position, const ui64 posStart,
         const ui64 posFinish, const TSortableBatchPosition& forFound, const bool greater);
@@ -361,13 +361,13 @@ public:
     }
     NJson::TJsonValue DebugJson() const;
 
-    TRWSortableBatchPosition BuildRWPosition(std::shared_ptr<arrow::RecordBatch> batch, const ui32 position) const;
+    TRWSortableBatchPosition BuildRWPosition(std::shared_ptr<arrow20::RecordBatch> batch, const ui32 position) const;
 
-    bool IsSameSortingSchema(const arrow::Schema& schema) const {
+    bool IsSameSortingSchema(const arrow20::Schema& schema) const {
         return Sorting->IsSameSchema(schema);
     }
 
-    bool IsSameDataSchema(const arrow::Schema& schema) const {
+    bool IsSameDataSchema(const arrow20::Schema& schema) const {
         if (!Data) {
             return schema.num_fields() == 0;
         }
@@ -405,7 +405,7 @@ public:
         Y_ABORT_UNLESS(Sorting->GetColumns().size());
     }
 
-    TSortableBatchPosition(const std::vector<std::shared_ptr<arrow::Field>>& fields, const std::vector<std::shared_ptr<arrow::Array>>& columns,
+    TSortableBatchPosition(const std::vector<std::shared_ptr<arrow20::Field>>& fields, const std::vector<std::shared_ptr<arrow20::Array>>& columns,
         const ui32 position, const bool reverseSort)
         : Position(position)
         , ReverseSort(reverseSort) {
@@ -664,9 +664,9 @@ public:
 
     //  (-inf, it1), [it1, it2), [it2, it3), ..., [itLast, +inf)
     template <class TBordersIterator>
-    static std::vector<std::shared_ptr<arrow::RecordBatch>> SplitByBorders(
-        const std::shared_ptr<arrow::RecordBatch>& batch, const std::vector<std::string>& columnNames, TBordersIterator& it) {
-        std::vector<std::shared_ptr<arrow::RecordBatch>> result;
+    static std::vector<std::shared_ptr<arrow20::RecordBatch>> SplitByBorders(
+        const std::shared_ptr<arrow20::RecordBatch>& batch, const std::vector<std::string>& columnNames, TBordersIterator& it) {
+        std::vector<std::shared_ptr<arrow20::RecordBatch>> result;
         if (!batch || batch->num_rows() == 0) {
             while (it.IsValid()) {
                 result.emplace_back(nullptr);
@@ -743,8 +743,8 @@ public:
     };
 
     template <class TContainer>
-    static std::vector<std::shared_ptr<arrow::RecordBatch>> SplitByBordersInAssociativeContainer(
-        const std::shared_ptr<arrow::RecordBatch>& batch, const std::vector<std::string>& columnNames, const TContainer& container) {
+    static std::vector<std::shared_ptr<arrow20::RecordBatch>> SplitByBordersInAssociativeContainer(
+        const std::shared_ptr<arrow20::RecordBatch>& batch, const std::vector<std::string>& columnNames, const TContainer& container) {
         TAssociatedContainerIterator<TContainer> it(container);
         return SplitByBorders(batch, columnNames, it);
     }
@@ -779,8 +779,8 @@ public:
     };
 
     template <class TContainer>
-    static std::vector<std::shared_ptr<arrow::RecordBatch>> SplitByBordersInSequentialContainer(
-        const std::shared_ptr<arrow::RecordBatch>& batch, const std::vector<std::string>& columnNames, const TContainer& container) {
+    static std::vector<std::shared_ptr<arrow20::RecordBatch>> SplitByBordersInSequentialContainer(
+        const std::shared_ptr<arrow20::RecordBatch>& batch, const std::vector<std::string>& columnNames, const TContainer& container) {
         TSequentialContainerIterator<TContainer> it(container);
         return SplitByBorders(batch, columnNames, it);
     }
@@ -822,8 +822,8 @@ public:
         }
     };
 
-    static std::vector<std::shared_ptr<arrow::RecordBatch>> SplitByBordersInIntervalPositions(
-        const std::shared_ptr<arrow::RecordBatch>& batch, const std::vector<std::string>& columnNames, const TIntervalPositions& container) {
+    static std::vector<std::shared_ptr<arrow20::RecordBatch>> SplitByBordersInIntervalPositions(
+        const std::shared_ptr<arrow20::RecordBatch>& batch, const std::vector<std::string>& columnNames, const TIntervalPositions& container) {
         TIntervalPointsIterator it(container);
         return SplitByBorders(batch, columnNames, it);
     }

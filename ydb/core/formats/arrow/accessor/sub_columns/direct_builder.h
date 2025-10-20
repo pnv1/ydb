@@ -6,7 +6,7 @@
 #include <ydb/core/formats/arrow/accessor/abstract/accessor.h>
 #include <ydb/core/formats/arrow/arrow_helpers.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/array/builder_base.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/array/builder_base.h>
 #include <contrib/libs/xxhash/xxhash.h>
 #include <util/string/join.h>
 
@@ -80,12 +80,12 @@ private:
     THashMap<TStorageAddress, std::string> StorageHash;
     std::deque<std::string> Storage;
     std::deque<TString> StorageStrings;
-    const std::shared_ptr<arrow::DataType> Type;
+    const std::shared_ptr<arrow20::DataType> Type;
     const TSettings Settings;
     std::vector<std::shared_ptr<IBuffers>> Buffers;
 
 public:
-    TDataBuilder(const std::shared_ptr<arrow::DataType>& type, const TSettings& settings);
+    TDataBuilder(const std::shared_ptr<arrow20::DataType>& type, const TSettings& settings);
 
     void StoreBuffer(const std::shared_ptr<IBuffers>& data) {
         Buffers.emplace_back(data);

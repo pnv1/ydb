@@ -2,13 +2,13 @@
 #include "switch/switch_type.h"
 #include "arrow_helpers.h"
 #include "dictionary/conversion.h"
-#include <contrib/libs/apache/arrow/cpp/src/arrow/type.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/type.h>
 #include <util/system/yassert.h>
 #include <util/string/builder.h>
 
 namespace NKikimr::NArrow {
 
-TConclusion<std::vector<TSerializedBatch>> SplitByBlobSize(const std::shared_ptr<arrow::RecordBatch>& batch, const TBatchSplitttingContext& context) {
+TConclusion<std::vector<TSerializedBatch>> SplitByBlobSize(const std::shared_ptr<arrow20::RecordBatch>& batch, const TBatchSplitttingContext& context) {
     if (GetBatchDataSize(batch) <= context.GetSizeLimit()) {
         return TSerializedBatch::BuildWithLimit(batch, context);
     }
@@ -50,7 +50,7 @@ TConclusion<std::vector<TSerializedBatch>> SplitByBlobSize(const std::shared_ptr
     return result;
 }
 
-NKikimr::NArrow::TSerializedBatch TSerializedBatch::Build(std::shared_ptr<arrow::RecordBatch> batch, const TBatchSplitttingContext& context) {
+NKikimr::NArrow::TSerializedBatch TSerializedBatch::Build(std::shared_ptr<arrow20::RecordBatch> batch, const TBatchSplitttingContext& context) {
     std::optional<TString> specialKeysPayload;
     std::optional<TString> specialKeysFull;
     if (context.GetFieldsForSpecialKeys().size()) {
@@ -62,7 +62,7 @@ NKikimr::NArrow::TSerializedBatch TSerializedBatch::Build(std::shared_ptr<arrow:
         NArrow::GetBatchDataSize(batch), specialKeysPayload, specialKeysFull);
 }
 
-TConclusionStatus TSerializedBatch::BuildWithLimit(std::shared_ptr<arrow::RecordBatch> batch, const TBatchSplitttingContext& context, std::optional<TSerializedBatch>& sbL, std::optional<TSerializedBatch>& sbR) {
+TConclusionStatus TSerializedBatch::BuildWithLimit(std::shared_ptr<arrow20::RecordBatch> batch, const TBatchSplitttingContext& context, std::optional<TSerializedBatch>& sbL, std::optional<TSerializedBatch>& sbR) {
     TSerializedBatch sb = TSerializedBatch::Build(batch, context);
     const ui32 length = batch->num_rows();
     if (sb.GetSize() <= context.GetSizeLimit()) {
@@ -85,7 +85,7 @@ TConclusionStatus TSerializedBatch::BuildWithLimit(std::shared_ptr<arrow::Record
     }
 }
 
-TConclusion<std::vector<TSerializedBatch>> TSerializedBatch::BuildWithLimit(std::shared_ptr<arrow::RecordBatch> batch, const TBatchSplitttingContext& context) {
+TConclusion<std::vector<TSerializedBatch>> TSerializedBatch::BuildWithLimit(std::shared_ptr<arrow20::RecordBatch> batch, const TBatchSplitttingContext& context) {
     std::vector<TSerializedBatch> result;
     std::optional<TSerializedBatch> sbL;
     std::optional<TSerializedBatch> sbR;

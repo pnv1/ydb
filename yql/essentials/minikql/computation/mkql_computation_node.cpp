@@ -31,7 +31,7 @@ std::unique_ptr<IArrowKernelComputationNode> IComputationNode::PrepareArrowKerne
     return {};
 }
 
-TDatumProvider MakeDatumProvider(const arrow::Datum& datum) {
+TDatumProvider MakeDatumProvider(const arrow20::Datum& datum) {
     return [datum]() {
         return datum;
     };
@@ -48,7 +48,7 @@ TComputationContext::TComputationContext(const THolderFactory& holderFactory,
                                          const NUdf::IValueBuilder* builder,
                                          const TComputationOptsFull& opts,
                                          const TComputationMutables& mutables,
-                                         arrow::MemoryPool& arrowMemoryPool)
+                                         arrow20::MemoryPool& arrowMemoryPool)
     : TComputationContextLLVM{holderFactory, opts.Stats, std::make_unique<NUdf::TUnboxedValue[]>(mutables.CurValueIndex), builder}
     , RandomProvider(opts.RandomProvider)
     , TimeProvider(opts.TimeProvider)

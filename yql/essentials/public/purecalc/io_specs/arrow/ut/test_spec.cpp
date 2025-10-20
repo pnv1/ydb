@@ -76,22 +76,22 @@ public:
     }
 };
 
-using ExecBatchStreamImpl = TVectorStream<arrow::compute::ExecBatch>;
-using ExecBatchConsumerImpl = TVectorConsumer<arrow::compute::ExecBatch>;
+using ExecBatchStreamImpl = TVectorStream<arrow20::compute::ExecBatch>;
+using ExecBatchConsumerImpl = TVectorConsumer<arrow20::compute::ExecBatch>;
 
 template <typename TBuilder>
-arrow::Datum MakeArrayDatumFromVector(
+arrow20::Datum MakeArrayDatumFromVector(
     const TVector<typename TBuilder::value_type>& data,
     const TVector<bool>& valid) {
     TBuilder builder;
     ARROW_OK(builder.Reserve(data.size()));
     ARROW_OK(builder.AppendValues(data, valid));
-    return arrow::Datum(ARROW_RESULT(builder.Finish()));
+    return arrow20::Datum(ARROW_RESULT(builder.Finish()));
 }
 
 template <typename TValue>
 TVector<TValue> MakeVectorFromArrayDatum(
-    const arrow::Datum& datum,
+    const arrow20::Datum& datum,
     const int64_t dsize) {
     Y_ENSURE(datum.is_array(), "ExecBatch layout doesn't respect the schema");
 
@@ -107,7 +107,7 @@ TVector<TValue> MakeVectorFromArrayDatum(
     return TVector<TValue>(adata1, adata1 + dsize);
 }
 
-arrow::compute::ExecBatch MakeBatch(ui64 bsize, i64 value, ui64 init = 1) {
+arrow20::compute::ExecBatch MakeBatch(ui64 bsize, i64 value, ui64 init = 1) {
     TVector<uint64_t> data1(bsize);
     TVector<int64_t> data2(bsize);
     TVector<bool> valid(bsize);
@@ -115,14 +115,14 @@ arrow::compute::ExecBatch MakeBatch(ui64 bsize, i64 value, ui64 init = 1) {
     std::fill(data2.begin(), data2.end(), value);
     std::fill(valid.begin(), valid.end(), true);
 
-    TVector<arrow::Datum> batchArgs = {
-        MakeArrayDatumFromVector<arrow::UInt64Builder>(data1, valid),
-        MakeArrayDatumFromVector<arrow::Int64Builder>(data2, valid)};
+    TVector<arrow20::Datum> batchArgs = {
+        MakeArrayDatumFromVector<arrow20::UInt64Builder>(data1, valid),
+        MakeArrayDatumFromVector<arrow20::Int64Builder>(data2, valid)};
 
-    return arrow::compute::ExecBatch(std::move(batchArgs), bsize);
+    return arrow20::compute::ExecBatch(std::move(batchArgs), bsize);
 }
 
-TVector<std::tuple<ui64, i64>> CanonBatches(const TVector<arrow::compute::ExecBatch>& batches) {
+TVector<std::tuple<ui64, i64>> CanonBatches(const TVector<arrow20::compute::ExecBatch>& batches) {
     TVector<std::tuple<ui64, i64>> result;
     for (const auto& batch : batches) {
         const auto bsize = batch.length;
@@ -156,14 +156,14 @@ Y_UNIT_TEST_BLOCKS(TestSingleInput) {
             "SELECT * FROM Input",
             ETranslationMode::SQL);
 
-        const TVector<arrow::compute::ExecBatch> input({MakeBatch(9, 19)});
+        const TVector<arrow20::compute::ExecBatch> input({MakeBatch(9, 19)});
         const auto canonInput = CanonBatches(input);
         ExecBatchStreamImpl items(input);
 
         auto stream = program->Apply(&items);
 
-        TVector<arrow::compute::ExecBatch> output;
-        while (arrow::compute::ExecBatch* batch = stream->Fetch()) {
+        TVector<arrow20::compute::ExecBatch> output;
+        while (arrow20::compute::ExecBatch* batch = stream->Fetch()) {
             output.push_back(*batch);
         }
         const auto canonOutput = CanonBatches(output);
@@ -192,7 +192,7 @@ Y_UNIT_TEST_BLOCKS(TestMultiInput) {
                 )",
             ETranslationMode::SQL);
 
-        TVector<arrow::compute::ExecBatch> inputs = {
+        TVector<arrow20::compute::ExecBatch> inputs = {
             MakeBatch(9, 19),
             MakeBatch(7, 17)};
         const auto canonInputs = CanonBatches(inputs);
@@ -200,12 +200,12 @@ Y_UNIT_TEST_BLOCKS(TestMultiInput) {
         ExecBatchStreamImpl items0({inputs[0]});
         ExecBatchStreamImpl items1({inputs[1]});
 
-        const TVector<IStream<arrow::compute::ExecBatch*>*> items({&items0, &items1});
+        const TVector<IStream<arrow20::compute::ExecBatch*>*> items({&items0, &items1});
 
         auto stream = program->Apply(items);
 
-        TVector<arrow::compute::ExecBatch> output;
-        while (arrow::compute::ExecBatch* batch = stream->Fetch()) {
+        TVector<arrow20::compute::ExecBatch> output;
+        while (arrow20::compute::ExecBatch* batch = stream->Fetch()) {
             output.push_back(*batch);
         }
         const auto canonOutput = CanonBatches(output);
@@ -235,18 +235,18 @@ Y_UNIT_TEST_BLOCKS(TestInc) {
                 FROM Input)",
             ETranslationMode::SQL);
 
-        const TVector<arrow::compute::ExecBatch> input({MakeBatch(9, 19)});
+        const TVector<arrow20::compute::ExecBatch> input({MakeBatch(9, 19)});
         const auto canonInput = CanonBatches(input);
         ExecBatchStreamImpl items(input);
 
         auto stream = program->Apply(&items);
 
-        TVector<arrow::compute::ExecBatch> output;
-        while (arrow::compute::ExecBatch* batch = stream->Fetch()) {
+        TVector<arrow20::compute::ExecBatch> output;
+        while (arrow20::compute::ExecBatch* batch = stream->Fetch()) {
             output.push_back(*batch);
         }
         const auto canonOutput = CanonBatches(output);
-        const TVector<arrow::compute::ExecBatch> check({MakeBatch(9, 17, 2)});
+        const TVector<arrow20::compute::ExecBatch> check({MakeBatch(9, 17, 2)});
         const auto canonCheck = CanonBatches(check);
         UNIT_ASSERT_EQUAL(canonCheck, canonOutput);
     } catch (const TCompileError& error) {
@@ -271,14 +271,14 @@ Y_UNIT_TEST_BLOCKS(TestSingleInput) {
             "SELECT * FROM Input",
             ETranslationMode::SQL);
 
-        const TVector<arrow::compute::ExecBatch> input({MakeBatch(9, 19)});
+        const TVector<arrow20::compute::ExecBatch> input({MakeBatch(9, 19)});
         const auto canonInput = CanonBatches(input);
         ExecBatchStreamImpl items(input);
 
         auto stream = program->Apply(&items);
 
-        TVector<arrow::compute::ExecBatch> output;
-        while (arrow::compute::ExecBatch* batch = stream->Fetch()) {
+        TVector<arrow20::compute::ExecBatch> output;
+        while (arrow20::compute::ExecBatch* batch = stream->Fetch()) {
             output.push_back(*batch);
         }
         const auto canonOutput = CanonBatches(output);
@@ -308,18 +308,18 @@ Y_UNIT_TEST_BLOCKS(TestInc) {
                 FROM Input)",
             ETranslationMode::SQL);
 
-        const TVector<arrow::compute::ExecBatch> input({MakeBatch(9, 19)});
+        const TVector<arrow20::compute::ExecBatch> input({MakeBatch(9, 19)});
         const auto canonInput = CanonBatches(input);
         ExecBatchStreamImpl items(input);
 
         auto stream = program->Apply(&items);
 
-        TVector<arrow::compute::ExecBatch> output;
-        while (arrow::compute::ExecBatch* batch = stream->Fetch()) {
+        TVector<arrow20::compute::ExecBatch> output;
+        while (arrow20::compute::ExecBatch* batch = stream->Fetch()) {
             output.push_back(*batch);
         }
         const auto canonOutput = CanonBatches(output);
-        const TVector<arrow::compute::ExecBatch> check({MakeBatch(9, 17, 2)});
+        const TVector<arrow20::compute::ExecBatch> check({MakeBatch(9, 17, 2)});
         const auto canonCheck = CanonBatches(check);
         UNIT_ASSERT_EQUAL(canonCheck, canonOutput);
     } catch (const TCompileError& error) {
@@ -344,9 +344,9 @@ Y_UNIT_TEST_BLOCKS(TestAllColumns) {
             "SELECT * FROM Input",
             ETranslationMode::SQL);
 
-        arrow::compute::ExecBatch input = MakeBatch(9, 19);
+        arrow20::compute::ExecBatch input = MakeBatch(9, 19);
         const auto canonInput = CanonBatches({input});
-        TVector<arrow::compute::ExecBatch> output;
+        TVector<arrow20::compute::ExecBatch> output;
 
         auto consumer = program->Apply(MakeHolder<ExecBatchConsumerImpl>(output));
 
@@ -380,9 +380,9 @@ Y_UNIT_TEST_BLOCKS(TestInc) {
                 FROM Input)",
             ETranslationMode::SQL);
 
-        arrow::compute::ExecBatch input = MakeBatch(9, 19);
+        arrow20::compute::ExecBatch input = MakeBatch(9, 19);
         const auto canonInput = CanonBatches({input});
-        TVector<arrow::compute::ExecBatch> output;
+        TVector<arrow20::compute::ExecBatch> output;
 
         auto consumer = program->Apply(MakeHolder<ExecBatchConsumerImpl>(output));
 
@@ -390,7 +390,7 @@ Y_UNIT_TEST_BLOCKS(TestInc) {
         UNIT_ASSERT_NO_EXCEPTION([&]() { consumer->OnFinish(); }());
 
         const auto canonOutput = CanonBatches(output);
-        const TVector<arrow::compute::ExecBatch> check({MakeBatch(9, 17, 2)});
+        const TVector<arrow20::compute::ExecBatch> check({MakeBatch(9, 17, 2)});
         const auto canonCheck = CanonBatches(check);
         UNIT_ASSERT_EQUAL(canonCheck, canonOutput);
     } catch (const TCompileError& error) {

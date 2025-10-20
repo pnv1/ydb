@@ -1,6 +1,6 @@
 #pragma once
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/api.h>
 
 #include <yql/essentials/minikql/computation/mkql_computation_node_holders.h>
 #include <yql/essentials/minikql/mkql_node.h>
@@ -8,7 +8,7 @@
 namespace NKikimr::NKqp::NFormats {
 
 /**
- * @brief Convert TType to the arrow::DataType object
+ * @brief Convert TType to the arrow20::DataType object
  *
  * The logic of this conversion is from YQL-15332:
  *
@@ -55,7 +55,7 @@ namespace NKikimr::NKqp::NFormats {
  * the number of Optional levels
  *
  * Dict<KeyType, ValueType> => StructArray<MapArray<KeyArray, ValueArray>,
- * Uint64Array (on demand, default: 0)> We do not use arrow::DictArray because
+ * Uint64Array (on demand, default: 0)> We do not use arrow20::DictArray because
  * it must be used for encoding not for mapping keys to values.
  * (https://arrow.apache.org/docs/cpp/api/array.html#classarrow_1_1_dictionary_array)
  * If the type of dict key is optional then we map
@@ -65,25 +65,25 @@ namespace NKikimr::NKqp::NFormats {
  *
  *
  * @param type Yql type to parse
- * @return std::shared_ptr<arrow::DataType> arrow type of the same structure as
+ * @return std::shared_ptr<arrow20::DataType> arrow type of the same structure as
  * type
  */
-std::shared_ptr<arrow::DataType> GetArrowType(const NMiniKQL::TType *type);
+std::shared_ptr<arrow20::DataType> GetArrowType(const NMiniKQL::TType *type);
 
-void AppendElement(NUdf::TUnboxedValue value, arrow::ArrayBuilder *builder, const NMiniKQL::TType *type);
+void AppendElement(NUdf::TUnboxedValue value, arrow20::ArrayBuilder *builder, const NMiniKQL::TType *type);
 
 namespace NTestUtils {
 
 bool IsArrowCompatible(const NMiniKQL::TType *type);
 
-std::unique_ptr<arrow::ArrayBuilder> MakeArrowBuilder(const NMiniKQL::TType *type);
+std::unique_ptr<arrow20::ArrayBuilder> MakeArrowBuilder(const NMiniKQL::TType *type);
 
-std::shared_ptr<arrow::Array> MakeArray(NMiniKQL::TUnboxedValueVector &values, const NMiniKQL::TType *itemType);
+std::shared_ptr<arrow20::Array> MakeArray(NMiniKQL::TUnboxedValueVector &values, const NMiniKQL::TType *itemType);
 
-NUdf::TUnboxedValue ExtractUnboxedValue(const std::shared_ptr<arrow::Array> &array, ui64 row,
+NUdf::TUnboxedValue ExtractUnboxedValue(const std::shared_ptr<arrow20::Array> &array, ui64 row,
     const NMiniKQL::TType *itemType, const NMiniKQL::THolderFactory &holderFactory);
 
-NMiniKQL::TUnboxedValueVector ExtractUnboxedValues(const std::shared_ptr<arrow::Array> &array,
+NMiniKQL::TUnboxedValueVector ExtractUnboxedValues(const std::shared_ptr<arrow20::Array> &array,
     const NMiniKQL::TType *itemType, const NMiniKQL::THolderFactory &holderFactory);
 
 } // namespace NTestUtils

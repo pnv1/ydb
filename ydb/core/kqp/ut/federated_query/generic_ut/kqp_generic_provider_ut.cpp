@@ -187,7 +187,7 @@ namespace NKikimr::NKqp {
                     .Done()
                 .Result()
                     .AddResponse(
-                        MakeRecordBatch<arrow::UInt16Builder>("col1", colData, arrow::uint16()),
+                        MakeRecordBatch<arrow20::UInt16Builder>("col1", colData, arrow20::uint16()),
                         NewSuccess());
             // clang-format on
 
@@ -551,8 +551,8 @@ namespace NKikimr::NKqp {
                     .Done()
                 .Result()
                     .AddResponse(MakeRecordBatch(
-                        MakeArray<arrow::BinaryBuilder>("data_column", colData, arrow::binary()),
-                        MakeArray<arrow::Int32Builder>("filtered_column", filterColumnData, arrow::int32())),
+                        MakeArray<arrow20::BinaryBuilder>("data_column", colData, arrow20::binary()),
+                        MakeArray<arrow20::Int32Builder>("filtered_column", filterColumnData, arrow20::int32())),
                         NewSuccess());
             // clang-format on
 

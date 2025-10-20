@@ -10,13 +10,13 @@
 
 namespace NKikimr::NOlap {
 
-TPredicate::TPredicate(EOperation op, std::shared_ptr<arrow::RecordBatch> batch) noexcept
+TPredicate::TPredicate(EOperation op, std::shared_ptr<arrow20::RecordBatch> batch) noexcept
     : Operation(op)
     , Batch(std::move(batch)) {
     Y_ABORT_UNLESS(IsFrom() || IsTo());
 }
 
-TPredicate::TPredicate(EOperation op, const TString& serializedBatch, const std::shared_ptr<arrow::Schema>& schema)
+TPredicate::TPredicate(EOperation op, const TString& serializedBatch, const std::shared_ptr<arrow20::Schema>& schema)
     : Operation(op) {
     Y_ABORT_UNLESS(IsFrom() || IsTo());
     if (!serializedBatch.empty()) {
@@ -46,7 +46,7 @@ std::vector<NScheme::TTypeInfo> ExtractTypes(const std::vector<std::pair<TString
 // TODO: try to use fields only
 TString FromCells(const TConstArrayRef<TCell>& cells,
     const std::vector<std::pair<TString, NScheme::TTypeInfo>>& columns,
-    const std::vector<std::shared_ptr<arrow::Field>>& fields) {
+    const std::vector<std::shared_ptr<arrow20::Field>>& fields) {
     Y_ABORT_UNLESS(cells.size() == columns.size());
     Y_ABORT_UNLESS(columns.size() == fields.size());
     if (cells.empty()) {
@@ -57,7 +57,7 @@ TString FromCells(const TConstArrayRef<TCell>& cells,
 
     NArrow::TArrowBatchBuilder batchBuilder;
     batchBuilder.Reserve(1);
-    auto schema = std::make_shared<arrow::Schema>(fields);
+    auto schema = std::make_shared<arrow20::Schema>(fields);
     auto startStatus = batchBuilder.Start(columns, schema);
     Y_ABORT_UNLESS(startStatus.ok(), "%s", startStatus.ToString().c_str());
 
@@ -72,10 +72,10 @@ TString FromCells(const TConstArrayRef<TCell>& cells,
 
 std::pair<NKikimr::NOlap::TPredicate, NKikimr::NOlap::TPredicate> TPredicate::DeserializePredicatesRange(
     const TSerializedTableRange& range, const std::vector<std::pair<TString, NScheme::TTypeInfo>>& columns, 
-    const std::shared_ptr<arrow::Schema>& schema) {
+    const std::shared_ptr<arrow20::Schema>& schema) {
     std::vector<TCell> leftCells;
     std::vector<std::pair<TString, NScheme::TTypeInfo>> leftColumns;
-    std::vector<std::shared_ptr<arrow::Field>> leftFields;
+    std::vector<std::shared_ptr<arrow20::Field>> leftFields;
     bool leftTrailingNull = false;
     {
         TConstArrayRef<TCell> cells = range.From.GetCells();
@@ -97,7 +97,7 @@ std::pair<NKikimr::NOlap::TPredicate, NKikimr::NOlap::TPredicate> TPredicate::De
 
     std::vector<TCell> rightCells;
     std::vector<std::pair<TString, NScheme::TTypeInfo>> rightColumns;
-    std::vector<std::shared_ptr<arrow::Field>> rightFields;
+    std::vector<std::shared_ptr<arrow20::Field>> rightFields;
     bool rightTrailingNull = false;
     {
         TConstArrayRef<TCell> cells = range.To.GetCells();
@@ -122,18 +122,18 @@ std::pair<NKikimr::NOlap::TPredicate, NKikimr::NOlap::TPredicate> TPredicate::De
 
     TString leftBorder = FromCells(leftCells, leftColumns, leftFields);
     TString rightBorder = FromCells(rightCells, rightColumns, rightFields);
-    auto leftSchema = std::make_shared<arrow::Schema>(leftFields);
-    auto rightSchema = std::make_shared<arrow::Schema>(rightFields);
+    auto leftSchema = std::make_shared<arrow20::Schema>(leftFields);
+    auto rightSchema = std::make_shared<arrow20::Schema>(rightFields);
     return std::make_pair(
         TPredicate(fromInclusive ? NKernels::EOperation::GreaterEqual : NKernels::EOperation::Greater, leftBorder, leftSchema),
         TPredicate(toInclusive ? NKernels::EOperation::LessEqual : NKernels::EOperation::Less, rightBorder, rightSchema));
 }
 
-std::shared_ptr<arrow::RecordBatch> TPredicate::CutNulls(const std::shared_ptr<arrow::RecordBatch>& batch) {
+std::shared_ptr<arrow20::RecordBatch> TPredicate::CutNulls(const std::shared_ptr<arrow20::RecordBatch>& batch) {
     AFL_VERIFY(batch->num_rows() == 1)("count", batch->num_rows());
     AFL_VERIFY(batch->num_columns());
-    std::vector<std::shared_ptr<arrow::Array>> colsNotNull;
-    std::vector<std::shared_ptr<arrow::Field>> fieldsNotNull;
+    std::vector<std::shared_ptr<arrow20::Array>> colsNotNull;
+    std::vector<std::shared_ptr<arrow20::Field>> fieldsNotNull;
     ui32 idx = 0;
     for (auto&& i : batch->columns()) {
         if (i->IsNull(0)) {
@@ -144,10 +144,10 @@ std::shared_ptr<arrow::RecordBatch> TPredicate::CutNulls(const std::shared_ptr<a
         ++idx;
     }
     AFL_VERIFY(colsNotNull.size());
-    return arrow::RecordBatch::Make(std::make_shared<arrow::Schema>(fieldsNotNull), 1, colsNotNull);
+    return arrow20::RecordBatch::Make(std::make_shared<arrow20::Schema>(fieldsNotNull), 1, colsNotNull);
 }
 
-bool TPredicate::IsEqualSchema(const std::shared_ptr<arrow::Schema>& schema) const {
+bool TPredicate::IsEqualSchema(const std::shared_ptr<arrow20::Schema>& schema) const {
     AFL_VERIFY(Batch);
     AFL_VERIFY(schema);
     if (schema->num_fields() != Batch->schema()->num_fields()) {
@@ -189,7 +189,7 @@ IOutputStream& operator<<(IOutputStream& out, const TPredicate& pred) {
         out << pred.Batch->schema()->field(i)->name() << ": ";
         NArrow::SwitchType(array->type_id(), [&](const auto& type) {
             using TWrap = std::decay_t<decltype(type)>;
-            using TArray = typename arrow::TypeTraits<typename TWrap::T>::ArrayType;
+            using TArray = typename arrow20::TypeTraits<typename TWrap::T>::ArrayType;
 
             auto& typedArray = static_cast<const TArray&>(*array);
             if (typedArray.IsNull(0)) {
@@ -197,7 +197,7 @@ IOutputStream& operator<<(IOutputStream& out, const TPredicate& pred) {
             } else {
                 auto value = typedArray.GetView(0);
                 using T = std::decay_t<decltype(value)>;
-                if constexpr (std::is_same_v<T, arrow::util::string_view>) {
+                if constexpr (std::is_same_v<T, std::string_view>) {
                     out << "'" << std::string_view(value.data(), value.size()) << "'";
                 } else {
                     out << "'" << value << "'";

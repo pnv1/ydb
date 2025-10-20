@@ -130,14 +130,14 @@ public:
 
 class TBuildFilterContext: NColumnShard::TMonitoringObjectsCounter<TBuildFilterContext>, TMoveOnly {
 private:
-    using TFieldByColumn = std::map<ui32, std::shared_ptr<arrow::Field>>;
+    using TFieldByColumn = std::map<ui32, std::shared_ptr<arrow20::Field>>;
     using TPortionIndex = THashMap<ui64, TPortionInfo::TConstPtr>;
     YDB_READONLY_DEF(TActorId, Owner);
     YDB_READONLY_DEF(std::shared_ptr<TFilterAccumulator>, Context);
     YDB_READONLY_DEF(TPortionIndex, RequiredPortions);
     YDB_READONLY_DEF(std::vector<TIntervalInfo>, Intervals);
     YDB_READONLY_DEF(TFieldByColumn, Columns);
-    YDB_READONLY_DEF(std::shared_ptr<arrow::Schema>, PKSchema);
+    YDB_READONLY_DEF(std::shared_ptr<arrow20::Schema>, PKSchema);
     YDB_READONLY_DEF(std::shared_ptr<NColumnFetching::TColumnDataManager>, ColumnDataManager);
     YDB_READONLY_DEF(std::shared_ptr<NDataAccessorControl::IDataAccessorsManager>, DataAccessorsManager);
     YDB_READONLY_DEF(std::shared_ptr<NColumnShard::TDuplicateFilteringCounters>, Counters);
@@ -146,7 +146,7 @@ private:
 
 public:
     TBuildFilterContext(const TActorId owner, const std::shared_ptr<TFilterAccumulator>& context, TPortionIndex&& portions,
-        std::vector<TIntervalInfo>&& intervals, const TFieldByColumn& columns, const std::shared_ptr<arrow::Schema>& pkSchema,
+        std::vector<TIntervalInfo>&& intervals, const TFieldByColumn& columns, const std::shared_ptr<arrow20::Schema>& pkSchema,
         const std::shared_ptr<NColumnFetching::TColumnDataManager>& columnDataManager,
         const std::shared_ptr<NDataAccessorControl::IDataAccessorsManager>& dataAccessorsManager,
         const std::shared_ptr<NColumnShard::TDuplicateFilteringCounters>& counters, std::unique_ptr<TFilterBuildingGuard>&& requestGuard,
