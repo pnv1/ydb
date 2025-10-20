@@ -2,7 +2,7 @@
 #include <ydb/library/formats/arrow/validation/validation.h>
 #include <ydb/library/yverify_stream/yverify_stream.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/api.h>
 #include <contrib/libs/xxhash/xxhash.h>
 #include <util/string/cast.h>
 #include <util/system/yassert.h>
@@ -24,7 +24,7 @@ private:
 
     template <typename T>
     struct ValueTypeSelector<T, false> {
-        using type = arrow20::util::string_view;
+        using type = std::string_view;
     };
 
 public:
@@ -99,7 +99,7 @@ public:
             }
         }
         if constexpr (IsStringView) {
-            if constexpr (std::is_same<TValue, arrow20::util::string_view>::value) {
+            if constexpr (std::is_same<TValue, std::string_view>::value) {
                 if constexpr (arrow20::is_parameter_free_type<TType>::value) {
                     return std::make_shared<TScalar>(arrow20::Buffer::FromString(std::string(val.data(), val.size())));
                 }
@@ -107,7 +107,7 @@ public:
                     return std::make_shared<TScalar>(arrow20::Buffer::FromString(std::string(val.data(), val.size())), dType);
                 }
             }
-            if constexpr (!std::is_same<TValue, arrow20::util::string_view>::value) {
+            if constexpr (!std::is_same<TValue, std::string_view>::value) {
                 if constexpr (arrow20::is_parameter_free_type<TType>::value) {
                     return std::make_shared<TScalar>(arrow20::Buffer::FromString(val));
                 }
@@ -136,7 +136,7 @@ public:
             return scalar.value;
         }
         if constexpr (IsStringView) {
-            return (arrow20::util::string_view)*scalar.value;
+            return (std::string_view)*scalar.value;
         }
         Y_FAIL();
         return ValueType{};
@@ -225,6 +225,7 @@ TResult SwitchTypeImpl(arrow20::Type::type typeId, TFunc&& f) {
         case arrow20::Type::MAX_ID:
         case arrow20::Type::SPARSE_UNION:
         case arrow20::Type::STRUCT:
+        default:
             break;
     }
 
@@ -265,7 +266,7 @@ bool AppendValues(arrow20::ArrayBuilder& builder, const typename T::c_type& valu
 }
 
 template <typename T>
-bool Append(arrow20::ArrayBuilder& builder, arrow20::util::string_view value) {
+bool Append(arrow20::ArrayBuilder& builder, std::string_view value) {
     using TBuilder = typename arrow20::TypeTraits<T>::BuilderType;
 
     TStatusValidator::Validate(static_cast<TBuilder&>(builder).Append(value));

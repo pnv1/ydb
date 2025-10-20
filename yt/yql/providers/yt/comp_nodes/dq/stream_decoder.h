@@ -21,8 +21,20 @@
 #include <arrow/util/macros.h>
 #include <arrow/util/visibility.h>
 
-namespace arrow {
+namespace arrow20 {
 namespace ipc::NDqs {
+
+using arrow20::Buffer;
+using arrow20::MemoryPool;
+using arrow20::default_memory_pool;
+using arrow20::Schema;
+using arrow20::Status;
+using arrow20::Result;
+using arrow20::ipc::ReadStats;
+using arrow20::ipc::Message;
+using arrow20::ipc::MessageDecoderListener;
+using arrow20::ipc::Listener;
+using arrow20::ipc::IpcReadOptions;
 
 class ARROW_EXPORT MessageDecoder2 {
  public:

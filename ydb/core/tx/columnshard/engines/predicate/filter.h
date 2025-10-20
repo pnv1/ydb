@@ -16,7 +16,7 @@ private:
 public:
     TPKRangesFilter();
 
-    std::optional<ui32> GetFilteredCountLimit(const std::shared_ptr<arrow::Schema>& pkSchema) {
+    std::optional<ui32> GetFilteredCountLimit(const std::shared_ptr<arrow20::Schema>& pkSchema) {
         ui32 result = 0;
         for (auto&& i : SortedRanges) {
             if (i.IsPointRange(pkSchema)) {
@@ -29,9 +29,9 @@ public:
     }
 
     [[nodiscard]] TConclusionStatus Add(
-        std::shared_ptr<NOlap::TPredicate> f, std::shared_ptr<NOlap::TPredicate> t, const std::shared_ptr<arrow::Schema>& pkSchema);
-    std::shared_ptr<arrow::RecordBatch> SerializeToRecordBatch(const std::shared_ptr<arrow::Schema>& pkSchema) const;
-    TString SerializeToString(const std::shared_ptr<arrow::Schema>& pkSchema) const;
+        std::shared_ptr<NOlap::TPredicate> f, std::shared_ptr<NOlap::TPredicate> t, const std::shared_ptr<arrow20::Schema>& pkSchema);
+    std::shared_ptr<arrow20::RecordBatch> SerializeToRecordBatch(const std::shared_ptr<arrow20::Schema>& pkSchema) const;
+    TString SerializeToString(const std::shared_ptr<arrow20::Schema>& pkSchema) const;
 
     bool IsEmpty() const {
         return SortedRanges.empty() || FakeRanges;
@@ -80,14 +80,14 @@ public:
 
     std::set<ui32> GetColumnIds(const TIndexInfo& indexInfo) const;
 
-    static std::shared_ptr<TPKRangesFilter> BuildFromRecordBatchLines(const std::shared_ptr<arrow::RecordBatch>& batch);
+    static std::shared_ptr<TPKRangesFilter> BuildFromRecordBatchLines(const std::shared_ptr<arrow20::RecordBatch>& batch);
 
     static std::shared_ptr<TPKRangesFilter> BuildFromRecordBatchFull(
-        const std::shared_ptr<arrow::RecordBatch>& batch, const std::shared_ptr<arrow::Schema>& pkSchema);
-    static std::shared_ptr<TPKRangesFilter> BuildFromString(const TString& data, const std::shared_ptr<arrow::Schema>& pkSchema);
+        const std::shared_ptr<arrow20::RecordBatch>& batch, const std::shared_ptr<arrow20::Schema>& pkSchema);
+    static std::shared_ptr<TPKRangesFilter> BuildFromString(const TString& data, const std::shared_ptr<arrow20::Schema>& pkSchema);
 
     static TConclusion<TPKRangesFilter> BuildFromProto(
-        const NKikimrTxDataShard::TEvKqpScan& proto, const std::vector<TNameTypeInfo>& ydbPk, const std::shared_ptr<arrow::Schema>& arrPk);
+        const NKikimrTxDataShard::TEvKqpScan& proto, const std::vector<TNameTypeInfo>& ydbPk, const std::shared_ptr<arrow20::Schema>& arrPk);
 };
 
 class ICursorEntity {

@@ -53,21 +53,21 @@ namespace {
 // Also check bitmask before fixing.
 //
 // FIXME(YQL-20162): Change the validation algorithm.
-std::shared_ptr<arrow::ArrayData> ConvertYqlOffsetsToArrowStandard(
-    const arrow::ArrayData& arrayData) {
+std::shared_ptr<arrow20::ArrayData> ConvertYqlOffsetsToArrowStandard(
+    const arrow20::ArrayData& arrayData) {
     auto result = arrayData.Copy();
-    if (result->type->id() == arrow::Type::STRUCT ||
-        result->type->id() == arrow::Type::DENSE_UNION ||
-        result->type->id() == arrow::Type::SPARSE_UNION) {
+    if (result->type->id() == arrow20::Type::STRUCT ||
+        result->type->id() == arrow20::Type::DENSE_UNION ||
+        result->type->id() == arrow20::Type::SPARSE_UNION) {
         if (result->buffers[0]) {
-            auto actualSize = arrow::BitUtil::BytesForBits(result->length + result->offset);
+            auto actualSize = arrow20::bit_util::BytesForBits(result->length + result->offset);
             MKQL_ENSURE(result->buffers[0]->size() >= actualSize, "Bitmask is invalid.");
         }
         result->offset = 0;
-        result->null_count = arrow::kUnknownNullCount;
+        result->null_count = arrow20::kUnknownNullCount;
     }
 
-    std::vector<std::shared_ptr<arrow::ArrayData>> children;
+    std::vector<std::shared_ptr<arrow20::ArrayData>> children;
     for (const auto& child : result->child_data) {
         children.push_back(ConvertYqlOffsetsToArrowStandard(*child));
     }
@@ -80,7 +80,7 @@ std::shared_ptr<arrow::ArrayData> ConvertYqlOffsetsToArrowStandard(
 class IDatumValidator {
 public:
     virtual ~IDatumValidator() = default;
-    virtual void Validate(arrow::Datum datum) const = 0;
+    virtual void Validate(arrow20::Datum datum) const = 0;
 };
 
 class TDatumValidatorBase: public IDatumValidator {
@@ -104,7 +104,7 @@ private:
 class TUnimplementedValidator: public TDatumValidatorBase {
 public:
     using TDatumValidatorBase::TDatumValidatorBase;
-    void Validate(arrow::Datum datum) const override {
+    void Validate(arrow20::Datum datum) const override {
         Y_UNUSED(datum);
     }
 };
@@ -114,13 +114,13 @@ class TSingularValidator: public TDatumValidatorBase {
 public:
     using TDatumValidatorBase::TDatumValidatorBase;
 
-    void Validate(arrow::Datum datum) const override {
+    void Validate(arrow20::Datum datum) const override {
         ValidateNullCount(datum);
         ValidateEmptyNullBuffer(datum);
     }
 
 private:
-    void ValidateNullCount(arrow::Datum datum) const {
+    void ValidateNullCount(arrow20::Datum datum) const {
         if (datum.is_scalar()) {
             MKQL_ENSURE(datum.scalar()->is_valid == !IsNull, "Singular type invariant violation.");
         } else {
@@ -130,7 +130,7 @@ private:
         }
     }
 
-    void ValidateEmptyNullBuffer(arrow::Datum datum) const {
+    void ValidateEmptyNullBuffer(arrow20::Datum datum) const {
         if (datum.is_scalar()) {
             return;
         }
@@ -148,11 +148,11 @@ public:
     {
     }
 
-    void Validate(arrow::Datum datum) const override {
+    void Validate(arrow20::Datum datum) const override {
         if (datum.is_scalar()) {
             if (datum.scalar()->is_valid) {
                 for (size_t i = 0; i < Children_.size(); ++i) {
-                    Children_[i]->Validate(arrow::Datum(dynamic_cast<const arrow::StructScalar&>(*datum.scalar()).value.at(i)));
+                    Children_[i]->Validate(arrow20::Datum(dynamic_cast<const arrow20::StructScalar&>(*datum.scalar()).value.at(i)));
                 }
             }
         } else {
@@ -174,10 +174,10 @@ public:
     {
     }
 
-    void Validate(arrow::Datum datum) const override {
+    void Validate(arrow20::Datum datum) const override {
         if (datum.is_scalar()) {
             if (datum.scalar()->is_valid) {
-                Base_->Validate(arrow::Datum(dynamic_cast<const arrow::StructScalar&>(*datum.scalar()).value.at(0)));
+                Base_->Validate(arrow20::Datum(dynamic_cast<const arrow20::StructScalar&>(*datum.scalar()).value.at(0)));
             }
         } else {
             Base_->Validate(*datum.array()->child_data[0]);
@@ -242,28 +242,28 @@ std::unique_ptr<TValidatorTraits::TResult> MakeBlockValidator(const NYql::NUdf::
     return DispatchByArrowTraits<TValidatorTraits>(typeInfoHelper, NYql::NUdf::TBlockTypeInspector(typeInfoHelper, type).GetItemType(), /*pgBuilder=*/nullptr);
 }
 
-arrow::Status ValidateArrayCheap(arrow::Datum datum, const TType* type) {
+arrow20::Status ValidateArrayCheap(arrow20::Datum datum, const TType* type) {
     if (type) {
         MakeBlockValidator(TTypeInfoHelper(), type)->Validate(datum);
     }
     auto array = ConvertYqlOffsetsToArrowStandard(*datum.array());
-    arrow::Status status = arrow::internal::ValidateArray(*array);
+    arrow20::Status status = arrow20::internal::ValidateArray(*array);
     return status;
 }
 
-arrow::Status ValidateArrayExpensive(arrow::Datum datum, const TType* type) {
+arrow20::Status ValidateArrayExpensive(arrow20::Datum datum, const TType* type) {
     ARROW_RETURN_NOT_OK(ValidateArrayCheap(datum, type));
     auto array = ConvertYqlOffsetsToArrowStandard(*datum.array());
-    return arrow::internal::ValidateArrayFull(*array);
+    return arrow20::internal::ValidateArrayFull(*array);
 }
 
-arrow::Status ValidateDatum(arrow::Datum datum, const TType* type, NYql::NUdf::EValidateDatumMode validateMode) {
+arrow20::Status ValidateDatum(arrow20::Datum datum, const TType* type, NYql::NUdf::EValidateDatumMode validateMode) {
     if (validateMode == NYql::NUdf::EValidateDatumMode::None) {
-        return arrow::Status::OK();
+        return arrow20::Status::OK();
     }
     if (datum.is_arraylike()) {
         NYql::NUdf::TArgsDechunker dechunker({datum});
-        std::vector<arrow::Datum> chunk;
+        std::vector<arrow20::Datum> chunk;
         while (dechunker.Next(chunk)) {
             Y_ENSURE(chunk[0].is_array());
             switch (validateMode) {
@@ -287,22 +287,22 @@ arrow::Status ValidateDatum(arrow::Datum datum, const TType* type, NYql::NUdf::E
         }
         // Apache arrow scalar validation is supported in ARROW-13132.
         // Add scalar support after library update (this is very similar to above array validation).
-        static_assert(ARROW_VERSION_MAJOR == 5, "If you see this message please notify owners about update and remove this assert.");
+        static_assert(ARROW_VERSION_MAJOR == 20, "If you see this message please notify owners about update and remove this assert.");
     } else {
         // Must be either arraylike or scalar.
         Y_UNREACHABLE();
     }
-    return arrow::Status::OK();
+    return arrow20::Status::OK();
 }
 
 } // namespace
 
-void ValidateDatum(arrow::Datum datum, TMaybe<arrow::ValueDescr> expectedDescription, const TType* type, NYql::NUdf::EValidateDatumMode validateMode) {
-    if (expectedDescription) {
-        ARROW_DEBUG_CHECK_DATUM_TYPES(*expectedDescription, datum.descr());
+void ValidateDatum(arrow20::Datum datum, TMaybe<arrow20::TypeHolder> expectedDescription, const TType* type, NYql::NUdf::EValidateDatumMode validateMode) {
+    if (expectedDescription && datum.type()) {
+        ARROW_DEBUG_CHECK_DATUM_TYPES(*expectedDescription, datum.type());
     }
     auto status = ValidateDatum(datum, type, validateMode);
-    Y_DEBUG_ABORT_UNLESS(status.ok(), "%s", (TStringBuilder() << "Type: " << datum.descr().ToString() << ". Original error is: " << status.message()).c_str());
+    Y_DEBUG_ABORT_UNLESS(status.ok(), "%s", (TStringBuilder() << "Type: " << (datum.type() ? datum.type()->ToString() : "unknown") << ". Original error is: " << status.message()).c_str());
 }
 
 } // namespace NKikimr::NMiniKQL

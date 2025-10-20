@@ -7,8 +7,8 @@
 #include <ydb/library/formats/arrow/arrow_helpers.h>
 #include <ydb/library/formats/arrow/simple_arrays_cache.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/record_batch.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/table.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/record_batch.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/table.h>
 
 namespace NKikimr::NArrow::NAccessor::NDictionary {
 
@@ -42,7 +42,7 @@ TConclusion<std::shared_ptr<IChunkedArray>> TConstructor::DoDeserializeFromStrin
     sbOriginal.Skip(proto.GetRecordsBlobSize());
 
     auto schemaVariants =
-        std::make_shared<arrow::Schema>(arrow::FieldVector({ std::make_shared<arrow::Field>("val", externalInfo.GetColumnType()) }));
+        std::make_shared<arrow20::Schema>(arrow20::FieldVector({ std::make_shared<arrow20::Field>("val", externalInfo.GetColumnType()) }));
     auto resultVariants = externalInfo.GetDefaultSerializer()->Deserialize(TString(blobVariants.data(), blobVariants.size()), schemaVariants);
     if (!resultVariants.ok()) {
         return TConclusionStatus::Fail(
@@ -51,8 +51,8 @@ TConclusion<std::shared_ptr<IChunkedArray>> TConstructor::DoDeserializeFromStrin
     auto rbVariants = TStatusValidator::GetValid(resultVariants);
     AFL_VERIFY(rbVariants->num_columns() == 1);
 
-    const std::shared_ptr<arrow::DataType> type = GetTypeByVariantsCount(rbVariants->num_rows());
-    auto schemaRecords = std::make_shared<arrow::Schema>(arrow::FieldVector({ std::make_shared<arrow::Field>("val", type) }));
+    const std::shared_ptr<arrow20::DataType> type = GetTypeByVariantsCount(rbVariants->num_rows());
+    auto schemaRecords = std::make_shared<arrow20::Schema>(arrow20::FieldVector({ std::make_shared<arrow20::Field>("val", type) }));
     auto resultRecords = externalInfo.GetDefaultSerializer()->Deserialize(TString(blobRecords.data(), blobRecords.size()), schemaRecords);
     if (!resultRecords.ok()) {
         return TConclusionStatus::Fail(resultRecords.status().ToString());
@@ -66,7 +66,7 @@ TConclusion<std::shared_ptr<IChunkedArray>> TConstructor::DoDeserializeFromStrin
 TConclusion<std::shared_ptr<IChunkedArray>> TConstructor::DoConstructDefault(const TChunkConstructionData& externalInfo) const {
     return std::make_shared<NArrow::NAccessor::TDictionaryArray>(
         NArrow::TThreadSimpleArraysCache::Get(externalInfo.GetColumnType(), externalInfo.GetDefaultValue(), 1),
-        NArrow::TThreadSimpleArraysCache::Get(arrow::uint8(), std::make_shared<arrow::UInt8Scalar>(0), externalInfo.GetRecordsCount()));
+        NArrow::TThreadSimpleArraysCache::Get(arrow20::uint8(), std::make_shared<arrow20::UInt8Scalar>(0), externalInfo.GetRecordsCount()));
 }
 
 NKikimrArrowAccessorProto::TConstructor TConstructor::DoSerializeToProto() const {
@@ -84,9 +84,9 @@ TString TConstructor::DoSerializeToString(const std::shared_ptr<IChunkedArray>& 
     auto schemaVariants = NArrow::BuildFakeSchema({ arrVariants });
     auto schemaRecords = NArrow::BuildFakeSchema({ arrRecords });
     const TString blobVariants =
-        externalInfo.GetDefaultSerializer()->SerializePayload(arrow::RecordBatch::Make(schemaVariants, arrVariants->length(), { arrVariants }));
+        externalInfo.GetDefaultSerializer()->SerializePayload(arrow20::RecordBatch::Make(schemaVariants, arrVariants->length(), { arrVariants }));
     const TString blobRecords =
-        externalInfo.GetDefaultSerializer()->SerializePayload(arrow::RecordBatch::Make(schemaRecords, arrRecords->length(), { arrRecords }));
+        externalInfo.GetDefaultSerializer()->SerializePayload(arrow20::RecordBatch::Make(schemaRecords, arrRecords->length(), { arrRecords }));
 
     NKikimrArrowAccessorProto::TDictionaryAccessor proto;
     proto.SetVariantsBlobSize(blobVariants.size());
@@ -112,11 +112,11 @@ TConclusion<std::shared_ptr<IChunkedArray>> TConstructor::DoConstruct(
         return TConclusionStatus::Fail("dictionary accessor cannot convert types for transfer: " + originalArray->GetDataType()->ToString() +
                                        " to " + externalInfo.GetColumnType()->ToString());
     }
-    auto schema = std::make_shared<arrow::Schema>(arrow::FieldVector({ std::make_shared<arrow::Field>("val", externalInfo.GetColumnType()) }));
+    auto schema = std::make_shared<arrow20::Schema>(arrow20::FieldVector({ std::make_shared<arrow20::Field>("val", externalInfo.GetColumnType()) }));
     auto chunked = originalArray->GetChunkedArray();
     AFL_VERIFY(chunked->type()->id() == originalArray->GetDataType()->id());
-    std::unique_ptr<arrow::ArrayBuilder> builderRecords;
-    std::unique_ptr<arrow::ArrayBuilder> builderVariants = NArrow::MakeBuilder(originalArray->GetDataType());
+    std::unique_ptr<arrow20::ArrayBuilder> builderRecords;
+    std::unique_ptr<arrow20::ArrayBuilder> builderVariants = NArrow::MakeBuilder(originalArray->GetDataType());
     std::vector<i32> records;
     std::vector<i32> remap;
     AFL_VERIFY(SwitchType(chunked->type()->id(), [&](const auto type) {
@@ -179,15 +179,15 @@ TConclusion<std::shared_ptr<IChunkedArray>> TConstructor::DoConstruct(
     return std::make_shared<TDictionaryArray>(arrVariants, arrRecords);
 }
 
-std::shared_ptr<arrow::DataType> TConstructor::GetTypeByVariantsCount(const ui32 count) {
+std::shared_ptr<arrow20::DataType> TConstructor::GetTypeByVariantsCount(const ui32 count) {
     if (count < Max<ui8>()) {
-        return arrow::uint8();
+        return arrow20::uint8();
     }
     if (count < Max<ui16>()) {
-        return arrow::uint16();
+        return arrow20::uint16();
     }
     if (count < Max<ui32>()) {
-        return arrow::uint32();
+        return arrow20::uint32();
     }
     AFL_VERIFY(false);
     return nullptr;

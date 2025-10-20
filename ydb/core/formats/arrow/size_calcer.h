@@ -5,8 +5,8 @@
 #include <ydb/library/conclusion/result.h>
 #include <ydb/library/formats/arrow/size_calcer.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/record_batch.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/array/array_binary.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/record_batch.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/array/array_binary.h>
 #include <util/system/types.h>
 #include <util/generic/string.h>
 
@@ -23,7 +23,7 @@ public:
 
     }
 
-    void SetFieldsForSpecialKeys(const std::shared_ptr<arrow::Schema>& schema) {
+    void SetFieldsForSpecialKeys(const std::shared_ptr<arrow20::Schema>& schema) {
         std::vector<TString> local;
         for (auto&& i : schema->fields()) {
             local.emplace_back(i->name());
@@ -61,9 +61,9 @@ public:
 
     TString DebugString() const;
 
-    static TConclusion<std::vector<TSerializedBatch>> BuildWithLimit(std::shared_ptr<arrow::RecordBatch> batch, const TBatchSplitttingContext& context);
-    static TConclusionStatus BuildWithLimit(std::shared_ptr<arrow::RecordBatch> batch, const TBatchSplitttingContext& context, std::optional<TSerializedBatch>& sbL, std::optional<TSerializedBatch>& sbR);
-    static TSerializedBatch Build(std::shared_ptr<arrow::RecordBatch> batch, const TBatchSplitttingContext& context);
+    static TConclusion<std::vector<TSerializedBatch>> BuildWithLimit(std::shared_ptr<arrow20::RecordBatch> batch, const TBatchSplitttingContext& context);
+    static TConclusionStatus BuildWithLimit(std::shared_ptr<arrow20::RecordBatch> batch, const TBatchSplitttingContext& context, std::optional<TSerializedBatch>& sbL, std::optional<TSerializedBatch>& sbR);
+    static TSerializedBatch Build(std::shared_ptr<arrow20::RecordBatch> batch, const TBatchSplitttingContext& context);
 
     TSerializedBatch(TString&& data, const ui32 rowsCount, const ui32 rawBytes,
         const std::optional<TString>& specialKeysPayload, const std::optional<TString>& specialKeysFull)
@@ -76,6 +76,6 @@ public:
     }
 };
 
-TConclusion<std::vector<TSerializedBatch>> SplitByBlobSize(const std::shared_ptr<arrow::RecordBatch>& batch, const TBatchSplitttingContext& context);
+TConclusion<std::vector<TSerializedBatch>> SplitByBlobSize(const std::shared_ptr<arrow20::RecordBatch>& batch, const TBatchSplitttingContext& context);
 
 }

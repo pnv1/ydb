@@ -12,7 +12,7 @@ namespace NKikimr::NOlap::NIndexes {
 class IReadDataExtractor {
 public:
     using TRecordVisitor = const std::function<void(const std::string_view value, const ui64 hashBase)>;
-    using TChunkVisitor = const std::function<void(const std::shared_ptr<arrow::Array>&, const ui64 hashBase)>;
+    using TChunkVisitor = const std::function<void(const std::shared_ptr<arrow20::Array>&, const ui64 hashBase)>;
     using TProto = NKikimrSchemeOp::TIndexDataExtractor;
     using TFactory = NObjectFactory::TObjectFactory<IReadDataExtractor, TString>;
 

@@ -65,7 +65,7 @@ protected:
         return 0;
     }
 
-    virtual std::shared_ptr<arrow::Scalar> DoGetMaxScalar() const override {
+    virtual std::shared_ptr<arrow20::Scalar> DoGetMaxScalar() const override {
         return nullptr;
     }
 
@@ -96,7 +96,7 @@ protected:
     }
 
 public:
-    TSubColumnsPartialArray(TSubColumnsHeader&& header, const ui32 recordsCount, const std::shared_ptr<arrow::DataType>& dataType)
+    TSubColumnsPartialArray(TSubColumnsHeader&& header, const ui32 recordsCount, const std::shared_ptr<arrow20::DataType>& dataType)
         : TBase(recordsCount, EType::SubColumnsPartialArray, dataType)
         , Header(std::move(header)) {
     }
@@ -112,7 +112,7 @@ public:
         return !NeedFetch(std::string_view(subColumnName.data(), subColumnName.size()));
     }
 
-    static std::shared_ptr<TSubColumnsPartialArray> BuildEmpty(const std::shared_ptr<arrow::DataType>& dataType, const ui32 recordsCount) {
+    static std::shared_ptr<TSubColumnsPartialArray> BuildEmpty(const std::shared_ptr<arrow20::DataType>& dataType, const ui32 recordsCount) {
         return std::make_shared<TSubColumnsPartialArray>(TSubColumnsHeader::BuildEmpty(), recordsCount, dataType);
     }
 
@@ -152,14 +152,14 @@ public:
 
     TSubColumnsPartialArray(const TSubColumnsHeader& header, TPartialColumnsData&& columnsData,
         std::optional<NSubColumns::TOthersData>&& othersData,
-        const std::shared_ptr<arrow::DataType>& dataType, const ui32 recordsCount)
+        const std::shared_ptr<arrow20::DataType>& dataType, const ui32 recordsCount)
         : TBase(recordsCount, EType::SubColumnsPartialArray, dataType)
         , Header(std::move(header))
         , PartialColumnsData(std::move(columnsData))
         , OthersData(std::move(othersData)) {
     }
 
-    virtual std::shared_ptr<arrow::Scalar> DoGetScalar(const ui32 /*index*/) const override {
+    virtual std::shared_ptr<arrow20::Scalar> DoGetScalar(const ui32 /*index*/) const override {
         return nullptr;
     }
 };

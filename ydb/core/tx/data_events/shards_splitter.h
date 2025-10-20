@@ -6,7 +6,7 @@
 #include <ydb/core/tx/scheme_cache/scheme_cache.h>
 #include <ydb/core/tx/columnshard/columnshard.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/record_batch.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/record_batch.h>
 
 
 namespace NKikimr::NEvWrite {
@@ -25,7 +25,7 @@ public:
         virtual bool HasDeserializedBatch() const {
             return !!GetDeserializedBatch();
         }
-        virtual std::shared_ptr<arrow::RecordBatch> GetDeserializedBatch() const = 0;
+        virtual std::shared_ptr<arrow20::RecordBatch> GetDeserializedBatch() const = 0;
         virtual TString GetSerializedData() const = 0;
         IEvWriteDataAccessor(const ui64 size)
             : Size(size)

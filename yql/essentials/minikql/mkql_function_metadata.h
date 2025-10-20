@@ -59,9 +59,9 @@ class TKernel;
 
 class TKernelFamily {
 public:
-    const arrow::compute::FunctionOptions* FunctionOptions;
+    const arrow20::compute::FunctionOptions* FunctionOptions;
 
-    TKernelFamily(const arrow::compute::FunctionOptions* functionOptions = nullptr)
+    TKernelFamily(const arrow20::compute::FunctionOptions* functionOptions = nullptr)
         : FunctionOptions(functionOptions)
     {
     }
@@ -92,8 +92,8 @@ public:
     {
     }
 
-    virtual const arrow::compute::ScalarKernel& GetArrowKernel() const = 0;
-    virtual std::shared_ptr<arrow::compute::ScalarKernel> MakeArrowKernel(const TVector<TType*>& argTypes, TType* resultType) const = 0;
+    virtual const arrow20::compute::ScalarKernel& GetArrowKernel() const = 0;
+    virtual std::shared_ptr<arrow20::compute::ScalarKernel> MakeArrowKernel(const TVector<TType*>& argTypes, TType* resultType) const = 0;
     virtual bool IsPolymorphic() const = 0;
 
     virtual ~TKernel() = default;
@@ -118,7 +118,7 @@ using TKernelFamilyMap = std::unordered_map<TString, std::unique_ptr<TKernelFami
 
 class TKernelFamilyBase: public TKernelFamily {
 public:
-    TKernelFamilyBase(const arrow::compute::FunctionOptions* functionOptions = nullptr);
+    TKernelFamilyBase(const arrow20::compute::FunctionOptions* functionOptions = nullptr);
 
     const TKernel* FindKernel(const NUdf::TDataTypeId* argTypes, size_t argTypesCount, NUdf::TDataTypeId returnType) const final;
     TVector<const TKernel*> GetAllKernels() const final;

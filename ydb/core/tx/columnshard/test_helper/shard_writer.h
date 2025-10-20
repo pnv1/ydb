@@ -5,7 +5,7 @@
 
 #include <ydb/library/accessor/accessor.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/record_batch.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/record_batch.h>
 
 namespace NKikimr::NTxUT {
 
@@ -41,7 +41,7 @@ public:
     [[nodiscard]] NKikimrDataEvents::TEvWriteResult::EStatus Abort();
 
     [[nodiscard]] NKikimrDataEvents::TEvWriteResult::EStatus Write(
-        const std::shared_ptr<arrow::RecordBatch>& batch, const std::vector<ui32>& columnIds, const ui64 txId);
+        const std::shared_ptr<arrow20::RecordBatch>& batch, const std::vector<ui32>& columnIds, const ui64 txId);
 };
 
 }   // namespace NKikimr::NTxUT

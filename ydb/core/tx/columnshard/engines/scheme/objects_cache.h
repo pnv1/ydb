@@ -4,7 +4,7 @@
 #include <ydb/core/tx/columnshard/engines/scheme/abstract/schema_version.h>
 #include <ydb/core/tx/columnshard/engines/scheme/common/cache.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/type.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/type.h>
 #include <library/cpp/string_utils/quote/quote.h>
 #include <util/generic/hash.h>
 
@@ -12,7 +12,7 @@ namespace NKikimr::NOlap {
 
 class TSchemaObjectsCache {
 private:
-    THashMap<TString, std::shared_ptr<arrow::Field>> Fields;
+    THashMap<TString, std::shared_ptr<arrow20::Field>> Fields;
     mutable ui64 AcceptionFieldsCount = 0;
     mutable TMutex FieldsMutex;
 
@@ -36,7 +36,7 @@ public:
         return *it;
     }
 
-    std::shared_ptr<arrow::Field> GetOrInsertField(const std::shared_ptr<arrow::Field>& f) {
+    std::shared_ptr<arrow20::Field> GetOrInsertField(const std::shared_ptr<arrow20::Field>& f) {
         TGuard lock(FieldsMutex);
         const TString fingerprint = f->ToString(true);
         auto it = Fields.find(fingerprint);

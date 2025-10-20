@@ -111,8 +111,8 @@ public:
                 metaProto.SetDeletionsCount(0);
                 metaProto.SetIsInserted(true);
 
-                const auto schema = std::make_shared<arrow::Schema>(arrow::FieldVector(
-                    { std::make_shared<arrow::Field>("key1", arrow::uint64()), std::make_shared<arrow::Field>("key2", arrow::uint64()) }));
+                const auto schema = std::make_shared<arrow20::Schema>(arrow20::FieldVector(
+                    { std::make_shared<arrow20::Field>("key1", arrow20::uint64()), std::make_shared<arrow20::Field>("key2", arrow20::uint64()) }));
                 auto batch = NArrow::MakeEmptyBatch(schema, 1);
                 NArrow::TFirstLastSpecialKeys keys(batch);
                 metaProto.SetPrimaryKeyBorders(keys.SerializePayloadToString());
@@ -281,9 +281,9 @@ Y_UNIT_TEST_SUITE(Normalizers) {
         const ui64 txId = 111;
 
         NConstruction::IArrayBuilder::TPtr key1Column =
-            std::make_shared<NConstruction::TSimpleArrayConstructor<NConstruction::TIntSeqFiller<arrow::UInt64Type>>>("key1");
+            std::make_shared<NConstruction::TSimpleArrayConstructor<NConstruction::TIntSeqFiller<arrow20::UInt64Type>>>("key1");
         NConstruction::IArrayBuilder::TPtr key2Column =
-            std::make_shared<NConstruction::TSimpleArrayConstructor<NConstruction::TIntSeqFiller<arrow::UInt64Type>>>("key2");
+            std::make_shared<NConstruction::TSimpleArrayConstructor<NConstruction::TIntSeqFiller<arrow20::UInt64Type>>>("key2");
         NConstruction::IArrayBuilder::TPtr column = std::make_shared<NConstruction::TSimpleArrayConstructor<NConstruction::TStringPoolFiller>>(
             "field", NConstruction::TStringPoolFiller(8, 100));
 

@@ -23,9 +23,9 @@
 namespace NYql {
 namespace NUdf {
 
-using TExec = arrow::Status (*)(arrow::compute::KernelContext*, const arrow::compute::ExecBatch&, arrow::Datum*);
+using TExec = arrow20::Status (*)(arrow20::compute::KernelContext*, const arrow20::compute::ExecSpan&, arrow20::compute::ExecResult*);
 
-class TUdfKernelState: public arrow::compute::KernelState {
+class TUdfKernelState: public arrow20::compute::KernelState {
 public:
     TUdfKernelState(const TVector<const TType*>& argTypes, const TType* outputType, bool onlyScalars, const ITypeInfoHelper* typeInfoHelper, const IValueBuilder* valueBuilder)
         : ArgTypes_(argTypes)
@@ -83,18 +83,18 @@ class TSimpleArrowUdfImpl: public TBoxedValue {
 public:
     TSimpleArrowUdfImpl(const TVector<const TType*> argBlockTypes, const TType* outputType, bool onlyScalars,
                         TExec exec, IFunctionTypeInfoBuilder& builder, const TString& name,
-                        arrow::compute::NullHandling::type nullHandling)
+                        arrow20::compute::NullHandling::type nullHandling)
         : OnlyScalars_(onlyScalars)
         , Exec_(exec)
         , Pos_(GetSourcePosition(builder))
         , Name_(name)
         , OutputType_(outputType)
-        , NullDatum_(arrow::Datum(std::make_shared<arrow::NullScalar>()))
+        , NullDatum_(arrow20::Datum(std::make_shared<arrow20::NullScalar>()))
     {
         TypeInfoHelper_ = builder.TypeInfoHelper();
         Kernel_.null_handling = nullHandling;
         Kernel_.exec = Exec_;
-        std::vector<arrow::compute::InputType> inTypes;
+        std::vector<arrow20::compute::InputType> inTypes;
         for (const auto& blockType : argBlockTypes) {
             TBlockTypeInspector blockInspector(*TypeInfoHelper_, blockType);
             Y_ENSURE(blockInspector);
@@ -104,13 +104,11 @@ public:
             Y_ENSURE(arrowTypeHandle);
             ArrowSchema s;
             arrowTypeHandle->Export(&s);
-            auto type = ARROW_RESULT(arrow::ImportType(&s));
+            auto type = ARROW_RESULT(arrow20::ImportType(&s));
             ArgArrowTypes_.emplace_back(type);
 
-            auto shape = blockInspector.IsScalar() ? arrow::ValueDescr::SCALAR : arrow::ValueDescr::ARRAY;
-
-            inTypes.emplace_back(arrow::compute::InputType(type, shape));
-            ArgsValuesDescr_.emplace_back(arrow::ValueDescr(type, shape));
+            inTypes.emplace_back(type);
+            ArgsValuesDescr_.emplace_back(type);
         }
 
         ReturnArrowTypeHandle_ = TypeInfoHelper_->MakeArrowType(outputType);
@@ -118,15 +116,14 @@ public:
 
         ArrowSchema s;
         ReturnArrowTypeHandle_->Export(&s);
-        auto outputShape = onlyScalars ? arrow::ValueDescr::SCALAR : arrow::ValueDescr::ARRAY;
-        arrow::compute::OutputType outType(arrow::ValueDescr(ARROW_RESULT(arrow::ImportType(&s)), outputShape));
+        auto outType = arrow20::compute::OutputType(ARROW_RESULT(arrow20::ImportType(&s)));
 
-        Kernel_.signature = arrow::compute::KernelSignature::Make(std::move(inTypes), std::move(outType));
+        Kernel_.signature = arrow20::compute::KernelSignature::Make(std::move(inTypes), std::move(outType));
     }
 
     TUnboxedValue Run(const IValueBuilder* valueBuilder, const TUnboxedValuePod* args) const final {
         try {
-            TVector<arrow::Datum> argDatums(ArgArrowTypes_.size());
+            TVector<arrow20::Datum> argDatums(ArgArrowTypes_.size());
             for (ui32 i = 0; i < ArgArrowTypes_.size(); ++i) {
                 bool isScalar;
                 ui64 length;
@@ -142,50 +139,52 @@ public:
                 if (isScalar) {
                     ArrowArray a;
                     valueBuilder->ExportArrowBlock(args[i], 0, &a);
-                    auto arr = ARROW_RESULT(arrow::ImportArray(&a, ArgArrowTypes_[i]));
+                    auto arr = ARROW_RESULT(arrow20::ImportArray(&a, ArgArrowTypes_[i]));
                     auto scalar = ARROW_RESULT(arr->GetScalar(0));
                     argDatums[i] = scalar;
                 } else {
-                    TVector<std::shared_ptr<arrow::Array>> imported(chunkCount);
+                    TVector<std::shared_ptr<arrow20::Array>> imported(chunkCount);
                     for (ui32 k = 0; k < chunkCount; ++k) {
                         ArrowArray a;
                         valueBuilder->ExportArrowBlock(args[i], k, &a);
-                        auto arr = ARROW_RESULT(arrow::ImportArray(&a, ArgArrowTypes_[i]));
+                        auto arr = ARROW_RESULT(arrow20::ImportArray(&a, ArgArrowTypes_[i]));
                         imported[k] = arr;
                     }
 
                     if (chunkCount == 1) {
                         argDatums[i] = imported.front();
                     } else {
-                        argDatums[i] = ARROW_RESULT(arrow::ChunkedArray::Make(std::move(imported), ArgArrowTypes_[i]));
+                        argDatums[i] = ARROW_RESULT(arrow20::ChunkedArray::Make(std::move(imported), ArgArrowTypes_[i]));
                     }
                 }
             }
 
             TUdfKernelState kernelState(ArgTypes_, OutputType_, OnlyScalars_, TypeInfoHelper_.Get(), valueBuilder);
-            arrow::compute::ExecContext execContext(GetYqlMemoryPool());
-            arrow::compute::KernelContext kernelContext(&execContext);
+            arrow20::compute::ExecContext execContext(GetYqlMemoryPool());
+            arrow20::compute::KernelContext kernelContext(&execContext);
             kernelContext.SetState(&kernelState);
 
-            arrow::Datum res;
+            arrow20::Datum res;
             if (OnlyScalars_) {
-                auto executor = arrow::compute::detail::KernelExecutor::MakeScalar();
+                auto executor = arrow20::compute::detail::KernelExecutor::MakeScalar();
                 ARROW_OK(executor->Init(&kernelContext, {&Kernel_, ArgsValuesDescr_, nullptr}));
 
-                auto listener = std::make_shared<arrow::compute::detail::DatumAccumulator>();
-                ARROW_OK(executor->Execute(argDatums, listener.get()));
+                auto listener = std::make_shared<arrow20::compute::detail::DatumAccumulator>();
+                auto batch = arrow20::compute::ExecBatch(argDatums, argDatums.empty() ? 0 : argDatums[0].length());
+                ARROW_OK(executor->Execute(batch, listener.get()));
                 res = executor->WrapResults(argDatums, listener->values());
             } else {
                 TArgsDechunker dechunker(std::move(argDatums));
-                std::vector<arrow::Datum> chunk;
-                TVector<std::shared_ptr<arrow::ArrayData>> arrays;
+                std::vector<arrow20::Datum> chunk;
+                TVector<std::shared_ptr<arrow20::ArrayData>> arrays;
 
                 while (dechunker.Next(chunk)) {
-                    auto executor = arrow::compute::detail::KernelExecutor::MakeScalar();
+                    auto executor = arrow20::compute::detail::KernelExecutor::MakeScalar();
                     ARROW_OK(executor->Init(&kernelContext, {&Kernel_, ArgsValuesDescr_, nullptr}));
 
-                    arrow::compute::detail::DatumAccumulator listener;
-                    ARROW_OK(executor->Execute(chunk, &listener));
+                    arrow20::compute::detail::DatumAccumulator listener;
+                    auto chunkBatch = arrow20::compute::ExecBatch(chunk, chunk.empty() ? 0 : chunk[0].length());
+                    ARROW_OK(executor->Execute(chunkBatch, &listener));
                     auto output = executor->WrapResults(chunk, listener.values());
 
                     ForEachArrayData(output, [&](const auto& arr) { arrays.push_back(arr); });
@@ -195,20 +194,20 @@ public:
             }
 
             if (OnlyScalars_) {
-                auto arr = ARROW_RESULT(arrow::MakeArrayFromScalar(*res.scalar(), 1));
+                auto arr = ARROW_RESULT(arrow20::MakeArrayFromScalar(*res.scalar(), 1));
                 ArrowArray a;
-                ARROW_OK(arrow::ExportArray(*arr, &a));
+                ARROW_OK(arrow20::ExportArray(*arr, &a));
                 return valueBuilder->ImportArrowBlock(&a, 1, true, *ReturnArrowTypeHandle_);
             } else {
                 TVector<ArrowArray> a;
                 if (res.is_array()) {
                     a.resize(1);
-                    ARROW_OK(arrow::ExportArray(*res.make_array(), &a[0]));
+                    ARROW_OK(arrow20::ExportArray(*res.make_array(), &a[0]));
                 } else {
                     Y_ENSURE(res.is_arraylike());
                     a.resize(res.chunks().size());
                     for (ui32 i = 0; i < res.chunks().size(); ++i) {
-                        ARROW_OK(arrow::ExportArray(*res.chunks()[i], &a[i]));
+                        ARROW_OK(arrow20::ExportArray(*res.chunks()[i], &a[i]));
                     }
                 }
 
@@ -230,13 +229,13 @@ private:
     const TType* OutputType_;
     ITypeInfoHelper::TPtr TypeInfoHelper_;
 
-    TVector<std::shared_ptr<arrow::DataType>> ArgArrowTypes_;
+    TVector<std::shared_ptr<arrow20::DataType>> ArgArrowTypes_;
     IArrowType::TPtr ReturnArrowTypeHandle_;
 
-    arrow::compute::ScalarKernel Kernel_;
-    std::vector<arrow::ValueDescr> ArgsValuesDescr_;
+    arrow20::compute::ScalarKernel Kernel_;
+    std::vector<arrow20::TypeHolder> ArgsValuesDescr_;
     TVector<const TType*> ArgTypes_;
-    const arrow::Datum NullDatum_;
+    const arrow20::Datum NullDatum_;
 };
 
 inline void SetCallableArgumentAttributes(IFunctionArgTypesBuilder& argsBuilder,
@@ -250,7 +249,7 @@ inline void SetCallableArgumentAttributes(IFunctionArgTypesBuilder& argsBuilder,
 }
 
 inline void PrepareSimpleArrowUdf(IFunctionTypeInfoBuilder& builder, TType* signature, TType* userType, TExec exec, bool typesOnly,
-                                  const TString& name, arrow::compute::NullHandling::type nullHandling = arrow::compute::NullHandling::type::COMPUTED_NO_PREALLOCATE) {
+                                  const TString& name, arrow20::compute::NullHandling::type nullHandling = arrow20::compute::NullHandling::type::COMPUTED_NO_PREALLOCATE) {
     auto typeInfoHelper = builder.TypeInfoHelper();
     TCallableTypeInspector callableInspector(*typeInfoHelper, signature);
     Y_ENSURE(callableInspector);
@@ -321,8 +320,8 @@ inline void PrepareSimpleArrowUdf(IFunctionTypeInfoBuilder& builder, TType* sign
     }
 
     if (!typesOnly) {
-        builder.Implementation(new TSimpleArrowUdfImpl(argBlockTypes, callableInspector.GetReturnType(),
-                                                       onlyScalars, exec, builder, name, nullHandling));
+        builder.Implementation(static_cast<IBoxedValue*>(new TSimpleArrowUdfImpl(argBlockTypes, callableInspector.GetReturnType(),
+                                                       onlyScalars, exec, builder, name, nullHandling)));
     }
 }
 
@@ -355,7 +354,7 @@ TReader* CastToBlockReaderImpl(IBlockReader& reader) {
 
 template <typename TDerived, typename TReader = IBlockReader, typename TArrayBuilderImpl = IArrayBuilder, typename TScalarBuilderImpl = IScalarBuilder>
 struct TUnaryKernelExec {
-    static arrow::Status Do(arrow::compute::KernelContext* ctx, const arrow::compute::ExecBatch& batch, arrow::Datum* res) {
+    static arrow20::Status Do(arrow20::compute::KernelContext* ctx, const arrow20::compute::ExecSpan& batch, arrow20::compute::ExecResult* res) {
         auto& state = dynamic_cast<TUdfKernelState&>(*ctx->state());
         auto& reader = state.GetReader(0);
         auto* readerImpl = CastToBlockReaderImpl<TReader>(reader);
@@ -365,21 +364,21 @@ struct TUnaryKernelExec {
             auto& builder = state.GetScalarBuilder();
             auto* builderImpl = CastToScalarBuilderImpl<TScalarBuilderImpl>(builder);
 
-            auto item = readerImpl->GetScalarItem(*arg.scalar());
+            auto item = readerImpl->GetScalarItem(*arg.scalar);
             TDerived::Process(&state.GetValueBuilder(), item, [&](TBlockItem out) {
-                *res = builderImpl->Build(out);
+                auto datum = builderImpl->Build(out); res->value = datum.array();
             });
         } else {
-            auto& array = *arg.array();
+            auto& array = arg.array;
             auto& builder = state.GetArrayBuilder();
             auto* builderImpl = CastToArrayBuilderImpl<TArrayBuilderImpl>(builder);
 
             size_t maxBlockLength = builderImpl->MaxLength();
             Y_ENSURE(maxBlockLength > 0);
-            TVector<std::shared_ptr<arrow::ArrayData>> outputArrays;
+            TVector<std::shared_ptr<arrow20::ArrayData>> outputArrays;
             for (int64_t i = 0; i < array.length;) {
                 for (size_t j = 0; j < maxBlockLength && i < array.length; ++j, ++i) {
-                    auto item = readerImpl->GetItem(array, i);
+                    auto item = readerImpl->GetItem(*array.ToArrayData(), i);
                     TDerived::Process(&state.GetValueBuilder(), item, [&](TBlockItem out) {
                         builderImpl->Add(out);
                     });
@@ -388,16 +387,17 @@ struct TUnaryKernelExec {
                 ForEachArrayData(outputDatum, [&](const auto& arr) { outputArrays.push_back(arr); });
             }
 
-            *res = MakeArray(outputArrays);
+            auto resultDatum = MakeArray(outputArrays);
+            res->value = resultDatum.array();
         }
 
-        return arrow::Status::OK();
+        return arrow20::Status::OK();
     }
 };
 
 template <typename TDerived, typename TReader1 = IBlockReader, typename TReader2 = IBlockReader, typename TArrayBuilderImpl = IArrayBuilder, typename TScalarBuilderImpl = IScalarBuilder>
 struct TBinaryKernelExec {
-    static arrow::Status Do(arrow::compute::KernelContext* ctx, const arrow::compute::ExecBatch& batch, arrow::Datum* res) {
+    static arrow20::Status Do(arrow20::compute::KernelContext* ctx, const arrow20::compute::ExecSpan& batch, arrow20::compute::ExecResult* res) {
         auto& state = dynamic_cast<TUdfKernelState&>(*ctx->state());
 
         auto& reader1 = state.GetReader(0);
@@ -412,24 +412,24 @@ struct TBinaryKernelExec {
             auto& builder = state.GetScalarBuilder();
             auto* builderImpl = CastToScalarBuilderImpl<TScalarBuilderImpl>(builder);
 
-            auto item1 = reader1Impl->GetScalarItem(*arg1.scalar());
-            auto item2 = reader2Impl->GetScalarItem(*arg2.scalar());
+            auto item1 = reader1Impl->GetScalarItem(*arg1.scalar);
+            auto item2 = reader2Impl->GetScalarItem(*arg2.scalar);
 
             TDerived::Process(&state.GetValueBuilder(), item1, item2, [&](TBlockItem out) {
-                *res = builderImpl->Build(out);
+                auto datum = builderImpl->Build(out); res->value = datum.array();
             });
         } else if (arg1.is_scalar() && arg2.is_array()) {
-            auto item1 = reader1Impl->GetScalarItem(*arg1.scalar());
-            auto& array2 = *arg2.array();
+            auto item1 = reader1Impl->GetScalarItem(*arg1.scalar);
+            auto& array2 = arg2.array;
             auto& builder = state.GetArrayBuilder();
             auto* builderImpl = CastToArrayBuilderImpl<TArrayBuilderImpl>(builder);
 
             size_t maxBlockLength = builder.MaxLength();
             Y_ENSURE(maxBlockLength > 0);
-            TVector<std::shared_ptr<arrow::ArrayData>> outputArrays;
+            TVector<std::shared_ptr<arrow20::ArrayData>> outputArrays;
             for (int64_t i = 0; i < array2.length;) {
                 for (size_t j = 0; j < maxBlockLength && i < array2.length; ++j, ++i) {
-                    auto item2 = reader2Impl->GetItem(array2, i);
+                    auto item2 = reader2Impl->GetItem(*array2.ToArrayData(), i);
                     TDerived::Process(&state.GetValueBuilder(), item1, item2, [&](TBlockItem out) {
                         builderImpl->Add(out);
                     });
@@ -438,19 +438,20 @@ struct TBinaryKernelExec {
                 ForEachArrayData(outputDatum, [&](const auto& arr) { outputArrays.push_back(arr); });
             }
 
-            *res = MakeArray(outputArrays);
+            auto resultDatum = MakeArray(outputArrays);
+            res->value = resultDatum.array();
         } else if (arg1.is_array() && arg2.is_scalar()) {
-            auto& array1 = *arg1.array();
-            auto item2 = reader2Impl->GetScalarItem(*arg2.scalar());
+            auto& array1 = arg1.array;
+            auto item2 = reader2Impl->GetScalarItem(*arg2.scalar);
             auto& builder = state.GetArrayBuilder();
             auto* builderImpl = CastToArrayBuilderImpl<TArrayBuilderImpl>(builder);
 
             size_t maxBlockLength = builder.MaxLength();
             Y_ENSURE(maxBlockLength > 0);
-            TVector<std::shared_ptr<arrow::ArrayData>> outputArrays;
+            TVector<std::shared_ptr<arrow20::ArrayData>> outputArrays;
             for (int64_t i = 0; i < array1.length;) {
                 for (size_t j = 0; j < maxBlockLength && i < array1.length; ++j, ++i) {
-                    auto item1 = reader1Impl->GetItem(array1, i);
+                    auto item1 = reader1Impl->GetItem(*array1.ToArrayData(), i);
                     TDerived::Process(&state.GetValueBuilder(), item1, item2, [&](TBlockItem out) {
                         builderImpl->Add(out);
                     });
@@ -459,22 +460,23 @@ struct TBinaryKernelExec {
                 ForEachArrayData(outputDatum, [&](const auto& arr) { outputArrays.push_back(arr); });
             }
 
-            *res = MakeArray(outputArrays);
+            auto resultDatum = MakeArray(outputArrays);
+            res->value = resultDatum.array();
         } else {
             Y_ENSURE(arg1.is_array() && arg2.is_array());
-            auto& array1 = *arg1.array();
-            auto& array2 = *arg2.array();
+            auto& array1 = arg1.array;
+            auto& array2 = arg2.array;
             auto& builder = state.GetArrayBuilder();
             auto* builderImpl = CastToArrayBuilderImpl<TArrayBuilderImpl>(builder);
 
             size_t maxBlockLength = builder.MaxLength();
             Y_ENSURE(maxBlockLength > 0);
-            TVector<std::shared_ptr<arrow::ArrayData>> outputArrays;
+            TVector<std::shared_ptr<arrow20::ArrayData>> outputArrays;
             Y_ENSURE(array1.length == array2.length);
             for (int64_t i = 0; i < array1.length;) {
                 for (size_t j = 0; j < maxBlockLength && i < array1.length; ++j, ++i) {
-                    auto item1 = reader1Impl->GetItem(array1, i);
-                    auto item2 = reader2Impl->GetItem(array2, i);
+                    auto item1 = reader1Impl->GetItem(*array1.ToArrayData(), i);
+                    auto item2 = reader2Impl->GetItem(*array2.ToArrayData(), i);
                     TDerived::Process(&state.GetValueBuilder(), item1, item2, [&](TBlockItem out) {
                         builderImpl->Add(out);
                     });
@@ -483,23 +485,24 @@ struct TBinaryKernelExec {
                 ForEachArrayData(outputDatum, [&](const auto& arr) { outputArrays.push_back(arr); });
             }
 
-            *res = MakeArray(outputArrays);
+            auto resultDatum = MakeArray(outputArrays);
+            res->value = resultDatum.array();
         }
 
-        return arrow::Status::OK();
+        return arrow20::Status::OK();
     }
 };
 
 template <typename TDerived, size_t Argc, typename TArrayBuilderImpl = IArrayBuilder, typename TScalarBuilderImpl = IScalarBuilder>
 struct TGenericKernelExec {
-    static arrow::Status Do(arrow::compute::KernelContext* ctx, const arrow::compute::ExecBatch& batch, arrow::Datum* res) {
+    static arrow20::Status Do(arrow20::compute::KernelContext* ctx, const arrow20::compute::ExecSpan& batch, arrow20::compute::ExecResult* res) {
         auto& state = dynamic_cast<TUdfKernelState&>(*ctx->state());
         Y_ENSURE(batch.num_values() == Argc);
         // XXX: Since Arrow arrays ought to have the valid length value, use
         // this constant to check whether all the arrays in the given batch have
         // the same length and also as an indicator whether there is no array
         // arguments in the given batch.
-        int64_t alength = arrow::Datum::kUnknownLength;
+        int64_t alength = arrow20::Datum::kUnknownLength;
         // XXX: Allocate fixed-size buffer to pass the parameters into the
         // Process routine (stored into BlockItem), since only the content
         // of the particular cells will be updated in the main "process" loop.
@@ -516,7 +519,7 @@ struct TGenericKernelExec {
             if (arg.is_scalar()) {
                 continue;
             }
-            if (alength == arrow::Datum::kUnknownLength) {
+            if (alength == arrow20::Datum::kUnknownLength) {
                 alength = arg.length();
             } else {
                 Y_ENSURE(arg.length() == alength);
@@ -524,16 +527,16 @@ struct TGenericKernelExec {
             needUpdate[k] = true;
         }
         // Specialize the case, when all given arguments are scalar.
-        if (alength == arrow::Datum::kUnknownLength) {
+        if (alength == arrow20::Datum::kUnknownLength) {
             auto& builder = state.GetScalarBuilder();
             auto* builderImpl = CastToScalarBuilderImpl<TScalarBuilderImpl>(builder);
 
             for (size_t k = 0; k < Argc; k++) {
                 auto& reader = state.GetReader(k);
-                args[k] = reader.GetScalarItem(*batch[k].scalar());
+                args[k] = reader.GetScalarItem(*batch[k].scalar);
             }
             TDerived::Process(&state.GetValueBuilder(), items, [&](TBlockItem out) {
-                *res = builderImpl->Build(out);
+                auto datum = builderImpl->Build(out); res->value = datum.array();
             });
         } else {
             auto& builder = state.GetArrayBuilder();
@@ -541,7 +544,7 @@ struct TGenericKernelExec {
 
             size_t maxBlockLength = builder.MaxLength();
             Y_ENSURE(maxBlockLength > 0);
-            TVector<std::shared_ptr<arrow::ArrayData>> outputArrays;
+            TVector<std::shared_ptr<arrow20::ArrayData>> outputArrays;
             // Initialize all scalar arguments before the main "process" loop.
             for (size_t k = 0; k < Argc; k++) {
                 if (needUpdate[k]) {
@@ -549,7 +552,7 @@ struct TGenericKernelExec {
                 }
                 auto& reader = state.GetReader(k);
 
-                args[k] = reader.GetScalarItem(*batch[k].scalar());
+                args[k] = reader.GetScalarItem(*batch[k].scalar);
             }
             for (int64_t i = 0; i < alength;) {
                 for (size_t j = 0; j < maxBlockLength && i < alength; ++j, ++i) {
@@ -560,7 +563,7 @@ struct TGenericKernelExec {
                         }
                         auto& reader = state.GetReader(k);
 
-                        args[k] = reader.GetItem(*batch[k].array(), i);
+                        args[k] = reader.GetItem(*batch[k].array.ToArrayData(), i);
                     }
                     TDerived::Process(&state.GetValueBuilder(), items, [&](TBlockItem out) {
                         builderImpl->Add(out);
@@ -570,64 +573,65 @@ struct TGenericKernelExec {
                 ForEachArrayData(outputDatum, [&](const auto& arr) { outputArrays.push_back(arr); });
             }
 
-            *res = MakeArray(outputArrays);
+            auto resultDatum = MakeArray(outputArrays);
+            res->value = resultDatum.array();
         }
 
-        return arrow::Status::OK();
+        return arrow20::Status::OK();
     }
 };
 
 template <typename TInput, typename TOutput, TOutput (*Core)(TInput)>
-arrow::Status UnaryPreallocatedExecImpl(arrow::compute::KernelContext* ctx, const arrow::compute::ExecBatch& batch, arrow::Datum* res) {
+arrow20::Status UnaryPreallocatedExecImpl(arrow20::compute::KernelContext* ctx, const arrow20::compute::ExecSpan& batch, arrow20::compute::ExecResult* res) {
     Y_UNUSED(ctx);
-    auto& inArray = batch.values[0].array();
-    auto& outArray = res->array();
-    const TInput* inValues = inArray->GetValues<TInput>(1);
-    TOutput* outValues = outArray->GetMutableValues<TOutput>(1);
-    auto length = inArray->length;
+    auto& inArray = batch.values[0].array;
+    auto& outArrayData = *std::get<std::shared_ptr<arrow20::ArrayData>>(res->value);
+    const TInput* inValues = inArray.GetValues<TInput>(1);
+    TOutput* outValues = outArrayData.GetMutableValues<TOutput>(1);
+    auto length = inArray.length;
     for (int64_t i = 0; i < length; ++i) {
         outValues[i] = Core(inValues[i]);
     }
 
-    return arrow::Status::OK();
+    return arrow20::Status::OK();
 }
 
 template <typename TReader, typename TOutput, TOutput (*Core)(TBlockItem)>
-arrow::Status UnaryPreallocatedReaderExecImpl(arrow::compute::KernelContext* ctx, const arrow::compute::ExecBatch& batch, arrow::Datum* res) {
+arrow20::Status UnaryPreallocatedReaderExecImpl(arrow20::compute::KernelContext* ctx, const arrow20::compute::ExecSpan& batch, arrow20::compute::ExecResult* res) {
     Y_UNUSED(ctx);
     static_assert(std::is_base_of_v<IBlockReader, TReader>);
     TReader reader;
 
-    auto& inArray = batch.values[0].array();
-    auto& outArray = res->array();
-    TOutput* outValues = outArray->GetMutableValues<TOutput>(1);
-    auto length = inArray->length;
+    auto& inArray = batch.values[0].array;
+    auto& outArrayData = *std::get<std::shared_ptr<arrow20::ArrayData>>(res->value);
+    TOutput* outValues = outArrayData.GetMutableValues<TOutput>(1);
+    auto length = inArray.length;
     for (int64_t i = 0; i < length; ++i) {
-        auto item = reader.GetItem(*inArray, i);
+        auto item = reader.GetItem(*inArray.ToArrayData(), i);
         outValues[i] = Core(item);
     }
 
-    return arrow::Status::OK();
+    return arrow20::Status::OK();
 }
 
 template <typename TInput, typename TOutput, std::pair<TOutput, bool> Core(TInput)>
 struct TUnaryUnsafeFixedSizeFilterKernel {
-    static arrow::Status Do(arrow::compute::KernelContext* ctx, const arrow::compute::ExecBatch& batch, arrow::Datum* res) {
+    static arrow20::Status Do(arrow20::compute::KernelContext* ctx, const arrow20::compute::ExecSpan& batch, arrow20::compute::ExecResult* res) {
         static_assert(std::is_arithmetic<TInput>::value);
 
         Y_UNUSED(ctx);
-        const auto& inArray = batch.values.front().array();
-        const auto* inValues = inArray->GetValues<TInput>(1);
+        const auto& inArray = batch.values.front().array;
+        const auto* inValues = inArray.GetValues<TInput>(1);
 
-        const auto length = inArray->length;
+        const auto length = inArray.length;
 
-        auto& outArray = res->array();
-        auto* outValues = outArray->GetMutableValues<TOutput>(1);
+        auto& outArrayData = *std::get<std::shared_ptr<arrow20::ArrayData>>(res->value);
+        auto* outValues = outArrayData.GetMutableValues<TOutput>(1);
 
         TTypedBufferBuilder<uint8_t> nullBuilder(GetYqlMemoryPool());
         nullBuilder.Reserve(length);
 
-        bool isAllNull = inArray->GetNullCount() == length;
+        bool isAllNull = inArray.GetNullCount() == length;
         if (!isAllNull) {
             for (i64 i = 0; i < length; ++i) {
                 auto [output, isValid] = Core(inValues[i]);
@@ -640,15 +644,15 @@ struct TUnaryUnsafeFixedSizeFilterKernel {
         auto validMask = nullBuilder.Finish();
         validMask = MakeDenseBitmap(validMask->data(), length, GetYqlMemoryPool());
 
-        auto inMask = inArray->buffers[0];
-        if (inMask) {
-            outArray->buffers[0] = AllocateBitmapWithReserve(length, GetYqlMemoryPool());
-            arrow::internal::BitmapAnd(validMask->data(), 0, inArray->buffers[0]->data(), inArray->offset, outArray->length, outArray->offset, outArray->buffers[0]->mutable_data());
+        auto inMask = inArray.GetBuffer(0);
+        if (inMask && inMask->data()) {
+            outArrayData.buffers[0] = AllocateBitmapWithReserve(length, GetYqlMemoryPool());
+            arrow20::internal::BitmapAnd(validMask->data(), 0, inMask->data(), inArray.offset, outArrayData.length, outArrayData.offset, outArrayData.buffers[0]->mutable_data());
         } else {
-            outArray->buffers[0] = std::move(validMask);
+            outArrayData.buffers[0] = std::move(validMask);
         }
 
-        return arrow::Status::OK();
+        return arrow20::Status::OK();
     }
 };
 

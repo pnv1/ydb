@@ -18,6 +18,7 @@
 
 #include <arrow/scalar.h>
 #include <arrow/array.h>
+#include <arrow/array/util.h>
 #include <arrow/datum.h>
 
 namespace NKikimr {
@@ -85,7 +86,7 @@ struct TWideToBlocksState: public TBlockState {
     }
 
     void MakeBlocks(const THolderFactory& holderFactory) {
-        Values.back() = holderFactory.CreateArrowBlock(arrow::Datum(std::make_shared<arrow::UInt64Scalar>(Rows_)));
+        Values.back() = holderFactory.CreateArrowBlock(arrow20::Datum(std::make_shared<arrow20::UInt64Scalar>(Rows_)));
         Rows_ = 0;
         BuilderAllocatedSize_ = 0;
 
@@ -510,7 +511,7 @@ public:
     }
 
     void MakeBlocks(const THolderFactory& holderFactory) {
-        Values[BlockLengthIndex_] = holderFactory.CreateArrowBlock(arrow::Datum(std::make_shared<arrow::UInt64Scalar>(Rows_)));
+        Values[BlockLengthIndex_] = holderFactory.CreateArrowBlock(arrow20::Datum(std::make_shared<arrow20::UInt64Scalar>(Rows_)));
         Rows_ = 0;
         BuilderAllocatedSize_ = 0;
 
@@ -822,7 +823,7 @@ private:
     private:
         const std::unique_ptr<IBlockReader> Reader_;
         const std::unique_ptr<IBlockItemConverter> Converter_;
-        TDeque<std::shared_ptr<arrow::ArrayData>> Arrays_;
+        TDeque<std::shared_ptr<arrow20::ArrayData>> Arrays_;
         size_t Index_ = 0;
     };
 
@@ -855,7 +856,7 @@ struct TWideFromBlocksState: public TComputationValue<TWideFromBlocksState> {
     TUnboxedValueVector Values_;
     std::vector<std::unique_ptr<IBlockReader>> Readers_;
     std::vector<std::unique_ptr<IBlockItemConverter>> Converters_;
-    const std::vector<arrow::ValueDescr> ValuesDescr_;
+    const std::vector<arrow20::TypeHolder> ValuesDescr_;
 
     TWideFromBlocksState(TMemoryUsageInfo* memInfo, TComputationContext& ctx, const TVector<TType*>& types)
         : TComputationValue(memInfo)
@@ -879,7 +880,7 @@ struct TWideFromBlocksState: public TComputationValue<TWideFromBlocksState> {
     NUdf::TUnboxedValuePod Get(const THolderFactory& holderFactory, size_t idx) const {
         TBlockItem item;
         const auto& datum = TArrowBlock::From(Values_[idx]).GetDatum();
-        ARROW_DEBUG_CHECK_DATUM_TYPES(ValuesDescr_[idx], datum.descr());
+        ARROW_DEBUG_CHECK_DATUM_TYPES(ValuesDescr_[idx], datum.type());
         if (datum.is_scalar()) {
             item = Readers_[idx]->GetScalarItem(*datum.scalar());
         } else {
@@ -1252,7 +1253,7 @@ public:
             }
 
             const auto& datum = TArrowBlock::From(BlockItems_[i]).GetDatum();
-            ARROW_DEBUG_CHECK_DATUM_TYPES(ValuesDescr_[i], datum.descr());
+            ARROW_DEBUG_CHECK_DATUM_TYPES(ValuesDescr_[i], datum.type());
 
             TBlockItem item;
             if (datum.is_scalar()) {
@@ -1294,7 +1295,7 @@ private:
 
     std::vector<std::unique_ptr<IBlockReader>> Readers_;
     std::vector<std::unique_ptr<IBlockItemConverter>> Converters_;
-    const std::vector<arrow::ValueDescr> ValuesDescr_;
+    const std::vector<arrow20::TypeHolder> ValuesDescr_;
 };
 
 class TListFromBlocksWrapper: public TMutableComputationNode<TListFromBlocksWrapper> {
@@ -1417,28 +1418,55 @@ private:
     IComputationNode* const List_;
 };
 
+class TPrecomputedArrowExec {
+public:
+    explicit TPrecomputedArrowExec(arrow20::Datum datum) : Datum_(std::move(datum)) {}
+
+    arrow20::Status Exec(arrow20::compute::KernelContext*, const arrow20::compute::ExecSpan&, arrow20::compute::ExecResult* res) const {
+        if (Datum_.is_array()) {
+            res->value = Datum_.array();
+        } else {
+            // For scalars, convert to 1-element array
+            auto arrayResult = arrow20::MakeArrayFromScalar(*Datum_.scalar(), 1);
+            if (!arrayResult.ok()) {
+                return arrayResult.status();
+            }
+            res->value = (*arrayResult)->data();
+        }
+        return arrow20::Status::OK();
+    }
+
+private:
+    arrow20::Datum Datum_;
+};
+
 class TPrecomputedArrowNode: public IArrowKernelComputationNode {
 public:
-    TPrecomputedArrowNode(const arrow::Datum& datum, TStringBuf kernelName)
-        : Kernel_({}, datum.type(), [datum](arrow::compute::KernelContext*, const arrow::compute::ExecBatch&, arrow::Datum* res) {
-            *res = datum;
-            return arrow::Status::OK();
-        })
+    static arrow20::Status PrecomputedArrowExecWrapper(arrow20::compute::KernelContext* ctx, const arrow20::compute::ExecSpan& batch, arrow20::compute::ExecResult* res) {
+        auto* exec = reinterpret_cast<TPrecomputedArrowExec*>(ctx->kernel()->data.get());
+        return exec->Exec(ctx, batch, res);
+    }
+
+    TPrecomputedArrowNode(const arrow20::Datum& datum, TStringBuf kernelName)
+        : Exec_(std::make_shared<TPrecomputedArrowExec>(datum))
+        , Kernel_(arrow20::compute::KernelSignature::Make({}, arrow20::compute::OutputType(datum.type())),
+                  PrecomputedArrowExecWrapper)
         , KernelName_(kernelName)
     {
-        Kernel_.null_handling = arrow::compute::NullHandling::COMPUTED_NO_PREALLOCATE;
-        Kernel_.mem_allocation = arrow::compute::MemAllocation::NO_PREALLOCATE;
+        Kernel_.data = std::reinterpret_pointer_cast<arrow20::compute::KernelState>(Exec_);
+        Kernel_.null_handling = arrow20::compute::NullHandling::COMPUTED_NO_PREALLOCATE;
+        Kernel_.mem_allocation = arrow20::compute::MemAllocation::NO_PREALLOCATE;
     }
 
     TStringBuf GetKernelName() const final {
         return KernelName_;
     }
 
-    const arrow::compute::ScalarKernel& GetArrowKernel() const {
+    const arrow20::compute::ScalarKernel& GetArrowKernel() const {
         return Kernel_;
     }
 
-    const std::vector<arrow::ValueDescr>& GetArgsDesc() const {
+    const std::vector<arrow20::TypeHolder>& GetArgsDesc() const {
         return EmptyDesc_;
     }
 
@@ -1448,9 +1476,10 @@ public:
     }
 
 private:
-    arrow::compute::ScalarKernel Kernel_;
+    std::shared_ptr<TPrecomputedArrowExec> Exec_;
+    arrow20::compute::ScalarKernel Kernel_;
     const TStringBuf KernelName_;
-    const std::vector<arrow::ValueDescr> EmptyDesc_;
+    const std::vector<arrow20::TypeHolder> EmptyDesc_;
 };
 
 class TAsScalarWrapper: public TMutableCodegeneratorNode<TAsScalarWrapper> {
@@ -1462,7 +1491,7 @@ public:
         , Arg_(arg)
         , Type_(type)
     {
-        std::shared_ptr<arrow::DataType> arrowType;
+        std::shared_ptr<arrow20::DataType> arrowType;
         MKQL_ENSURE(ConvertArrowType(Type_, arrowType), "Unsupported type of scalar");
     }
 
@@ -1489,7 +1518,7 @@ private:
         return std::make_unique<TPrecomputedArrowNode>(DoAsScalar(Arg_->GetValue(ctx).Release(), ctx), "AsScalar");
     }
 
-    arrow::Datum DoAsScalar(const NUdf::TUnboxedValuePod value, TComputationContext& ctx) const {
+    arrow20::Datum DoAsScalar(const NUdf::TUnboxedValuePod value, TComputationContext& ctx) const {
         const NUdf::TUnboxedValue v(value);
         return ConvertScalar(Type_, v, ctx.ArrowMemoryPool);
     }
@@ -1516,7 +1545,7 @@ public:
         , Count_(count)
         , Type_(type)
     {
-        std::shared_ptr<arrow::DataType> arrowType;
+        std::shared_ptr<arrow20::DataType> arrowType;
         MKQL_ENSURE(ConvertArrowType(Type_, arrowType), "Unsupported type of scalar");
     }
 
@@ -1548,9 +1577,9 @@ private:
         return std::make_unique<TPrecomputedArrowNode>(DoReplicate(value, count, ctx), "ReplicateScalar");
     }
 
-    arrow::Datum DoReplicate(const NUdf::TUnboxedValuePod val, const NUdf::TUnboxedValuePod cnt, TComputationContext& ctx) const {
+    arrow20::Datum DoReplicate(const NUdf::TUnboxedValuePod val, const NUdf::TUnboxedValuePod cnt, TComputationContext& ctx) const {
         const auto value = TArrowBlock::From(val).GetDatum().scalar();
-        const ui64 count = TArrowBlock::From(cnt).GetDatum().scalar_as<arrow::UInt64Scalar>().value;
+        const ui64 count = TArrowBlock::From(cnt).GetDatum().scalar_as<arrow20::UInt64Scalar>().value;
 
         const auto reader = MakeBlockReader(TTypeInfoHelper(), Type_);
         const auto builder = MakeArrayBuilder(TTypeInfoHelper(), Type_, ctx.ArrowMemoryPool, count, &ctx.Builder->GetPgBuilder());

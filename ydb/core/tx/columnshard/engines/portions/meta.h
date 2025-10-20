@@ -96,7 +96,7 @@ public:
 
 class TPortionMeta {
 private:
-    std::shared_ptr<arrow::Schema> PKSchema;
+    std::shared_ptr<arrow20::Schema> PKSchema;
     NArrow::TSimpleRowContent FirstPKRow;
     NArrow::TSimpleRowContent LastPKRow;
     YDB_READONLY_DEF(TString, TierName);

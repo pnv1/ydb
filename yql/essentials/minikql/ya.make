@@ -59,7 +59,7 @@ SRCS(
 )
 
 PEERDIR(
-    contrib/libs/apache/arrow
+    contrib/libs/apache/arrow_next
     contrib/libs/cctz/tzdata
     library/cpp/deprecated/enum_codegen
     library/cpp/enumbitset

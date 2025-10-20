@@ -9,7 +9,7 @@
 
 #include <ydb/library/formats/arrow/validation/validation.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/util/compression.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/util/compression.h>
 #include <util/generic/hash_set.h>
 #include <util/generic/set.h>
 
@@ -46,11 +46,11 @@ public:
         return *this;
     }
 
-    std::shared_ptr<arrow::Field> GetEvictColumn(const std::shared_ptr<arrow::Schema>& schema) const {
+    std::shared_ptr<arrow20::Field> GetEvictColumn(const std::shared_ptr<arrow20::Schema>& schema) const {
         return schema->GetFieldByName(EvictColumnName);
     }
 
-    std::optional<TInstant> ScalarToInstant(const std::shared_ptr<arrow::Scalar>& scalar) const;
+    std::optional<TInstant> ScalarToInstant(const std::shared_ptr<arrow20::Scalar>& scalar) const;
 
     static std::shared_ptr<TTierInfo> MakeTtl(const TDuration evictDuration, const TString& ttlColumn, ui32 unitsInSecond = 0) {
         return std::make_shared<TTierInfo>(std::nullopt, evictDuration, ttlColumn, unitsInSecond);
@@ -168,7 +168,7 @@ public:
         }
     };
 
-    TTieringContext GetTierToMove(const std::shared_ptr<arrow::Scalar>& max, const TInstant now, const bool skipEviction) const;
+    TTieringContext GetTierToMove(const std::shared_ptr<arrow20::Scalar>& max, const TInstant now, const bool skipEviction) const;
 
     const TSet<TTierRef>& GetOrderedTiers() const {
         return OrderedTiers;

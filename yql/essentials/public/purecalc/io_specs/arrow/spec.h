@@ -21,11 +21,11 @@ namespace NPureCalc {
  * The program synopsis follows:
  *
  * @code
- * ... TPullListProgram::Apply(IStream<arrow::compute::ExecBatch*>*);
- * ... TPullListProgram::Apply(TVector<IStream<arrow::compute::ExecBatch*>*>);
- * ... TPullStreamProgram::Apply(IStream<arrow::compute::ExecBatch*>*);
- * ... TPullStreamProgram::Apply(TVector<IStream<arrow::compute::ExecBatch*>*>);
- * TConsumer<arrow::compute::ExecBatch*> TPushStreamProgram::Apply(...);
+ * ... TPullListProgram::Apply(IStream<arrow20::compute::ExecBatch*>*);
+ * ... TPullListProgram::Apply(TVector<IStream<arrow20::compute::ExecBatch*>*>);
+ * ... TPullStreamProgram::Apply(IStream<arrow20::compute::ExecBatch*>*);
+ * ... TPullStreamProgram::Apply(TVector<IStream<arrow20::compute::ExecBatch*>*>);
+ * TConsumer<arrow20::compute::ExecBatch*> TPushStreamProgram::Apply(...);
  * @endcode
  */
 
@@ -59,9 +59,9 @@ public:
  * The program synopsis follows:
  *
  * @code
- * IStream<arrow::compute::ExecBatch*> TPullStreamProgram::Apply(...);
- * IStream<arrow::compute::ExecBatch*> TPullListProgram::Apply(...);
- * ... TPushStreamProgram::Apply(TConsumer<arrow::compute::ExecBatch*>);
+ * IStream<arrow20::compute::ExecBatch*> TPullStreamProgram::Apply(...);
+ * IStream<arrow20::compute::ExecBatch*> TPullListProgram::Apply(...);
+ * ... TPushStreamProgram::Apply(TConsumer<arrow20::compute::ExecBatch*>);
  * @endcode
  */
 
@@ -85,7 +85,7 @@ struct TInputSpecTraits<TArrowInputSpec> {
     static const constexpr bool SupportPullStreamMode = true;
     static const constexpr bool SupportPushStreamMode = true;
 
-    using TInputItemType = arrow::compute::ExecBatch*;
+    using TInputItemType = arrow20::compute::ExecBatch*;
     using IInputStream = IStream<TInputItemType>;
     using TConsumerType = THolder<IConsumer<TInputItemType>>;
 
@@ -118,7 +118,7 @@ struct TOutputSpecTraits<TArrowOutputSpec> {
     static const constexpr bool SupportPullStreamMode = true;
     static const constexpr bool SupportPushStreamMode = true;
 
-    using TOutputItemType = arrow::compute::ExecBatch*;
+    using TOutputItemType = arrow20::compute::ExecBatch*;
     using IOutputStream = IStream<TOutputItemType>;
     using TPullListReturnType = THolder<IOutputStream>;
     using TPullStreamReturnType = THolder<IOutputStream>;

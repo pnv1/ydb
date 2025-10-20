@@ -11,7 +11,7 @@
 
 namespace NKikimr::NMiniKQL {
 
-std::shared_ptr<arrow::ArrayData> Unwrap(const arrow::ArrayData& data, TType* itemType) {
+std::shared_ptr<arrow20::ArrayData> Unwrap(const arrow20::ArrayData& data, TType* itemType) {
     if (NeedWrapWithExternalOptional(itemType)) {
         MKQL_ENSURE(data.child_data.size() == 1, "Expected struct with one element");
         return data.child_data[0];
@@ -19,20 +19,20 @@ std::shared_ptr<arrow::ArrayData> Unwrap(const arrow::ArrayData& data, TType* it
         auto buffers = data.buffers;
         MKQL_ENSURE(buffers.size() >= 1, "Missing nullable bitmap");
         buffers[0] = nullptr;
-        return arrow::ArrayData::Make(data.type, data.length, buffers, data.child_data, data.dictionary, 0, data.offset);
+        return arrow20::ArrayData::Make(data.type, data.length, buffers, data.child_data, data.dictionary, 0, data.offset);
     }
 }
 
-std::shared_ptr<arrow::Scalar> UnwrapScalar(std::shared_ptr<arrow::Scalar> scalar, TType* itemType) {
+std::shared_ptr<arrow20::Scalar> UnwrapScalar(std::shared_ptr<arrow20::Scalar> scalar, TType* itemType) {
     if (NeedWrapWithExternalOptional(itemType)) {
-        return dynamic_cast<arrow::StructScalar&>(*scalar).value.at(0);
+        return dynamic_cast<arrow20::StructScalar&>(*scalar).value.at(0);
     }
     return scalar;
 }
 
-std::shared_ptr<arrow::Buffer> MakeEmptyBuffer() {
+std::shared_ptr<arrow20::Buffer> MakeEmptyBuffer() {
     static constexpr ui8 data alignas(ArrowAlignment)[1]{};
-    return std::make_shared<arrow::Buffer>(data, 0);
+    return std::make_shared<arrow20::Buffer>(data, 0);
 }
 
 } // namespace NKikimr::NMiniKQL

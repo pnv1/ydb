@@ -1,5 +1,5 @@
 #pragma once
-#include <contrib/libs/apache/arrow/cpp/src/arrow/scalar.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/scalar.h>
 #include <ydb/core/scheme_types/scheme_type_info.h>
 #include <ydb/core/tx/columnshard/engines/scheme/defaults/protos/data.pb.h>
 #include <ydb/library/conclusion/status.h>
@@ -9,11 +9,11 @@ namespace NKikimr::NOlap {
 
 class TColumnDefaultScalarValue {
 private:
-    YDB_READONLY_DEF(std::shared_ptr<arrow::Scalar>, Value);
+    YDB_READONLY_DEF(std::shared_ptr<arrow20::Scalar>, Value);
 public:
     TColumnDefaultScalarValue() = default;
 
-    TColumnDefaultScalarValue(const std::shared_ptr<arrow::Scalar>& val)
+    TColumnDefaultScalarValue(const std::shared_ptr<arrow20::Scalar>& val)
         : Value(val)
     {
 
@@ -21,7 +21,7 @@ public:
 
     TString DebugString() const;
 
-    bool IsCompatibleType(const std::shared_ptr<arrow::DataType>& type) const {
+    bool IsCompatibleType(const std::shared_ptr<arrow20::DataType>& type) const {
         if (!Value) {
             return true;
         }

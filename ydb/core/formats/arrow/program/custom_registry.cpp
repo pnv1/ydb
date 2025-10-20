@@ -5,8 +5,8 @@
 #include <ydb/library/arrow_kernels/func_common.h>
 #include <ydb/library/arrow_kernels/functions.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/compute/api.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/compute/registry_internal.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/compute/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/compute/registry_internal.h>
 #include <util/system/yassert.h>
 
 #ifndef WIN32
@@ -20,7 +20,7 @@
 #include <AggregateFunctions/AggregateFunctionSum.h>
 #endif
 
-namespace cp = ::arrow::compute;
+namespace cp = ::arrow20::compute;
 
 using namespace NKikimr::NKernels;
 
@@ -130,7 +130,7 @@ cp::FunctionRegistry* GetCustomFunctionRegistry() {
 
 // We want to have ExecContext per thread. All these context use one custom registry.
 cp::ExecContext* GetCustomExecContext() {
-    static thread_local cp::ExecContext context(arrow::default_memory_pool(), nullptr, GetCustomFunctionRegistry());
+    static thread_local cp::ExecContext context(arrow20::default_memory_pool(), nullptr, GetCustomFunctionRegistry());
     return &context;
 }
 

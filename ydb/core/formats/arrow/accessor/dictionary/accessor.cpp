@@ -14,7 +14,7 @@ namespace NKikimr::NArrow::NAccessor {
 
 IChunkedArray::TLocalDataAddress TDictionaryArray::DoGetLocalData(
     const std::optional<TCommonChunkAddress>& /*chunkCurrent*/, const ui64 /*position*/) const {
-    std::unique_ptr<arrow::ArrayBuilder> builderVariants = NArrow::MakeBuilder(ArrayVariants->type());
+    std::unique_ptr<arrow20::ArrayBuilder> builderVariants = NArrow::MakeBuilder(ArrayVariants->type());
     AFL_VERIFY(SwitchType(ArrayVariants->type()->id(), [&](const auto typeVariant) {
         const auto* arrVariantsImpl = typeVariant.CastArray(ArrayVariants.get());
         auto* builder = typeVariant.CastBuilder(builderVariants.get());
@@ -47,8 +47,8 @@ std::shared_ptr<IChunkedArray> TDictionaryArray::DoISlice(const ui32 offset, con
     const auto recordsNew = ArrayRecords->Slice(offset, count);
     AFL_VERIFY(SwitchType(recordsNew->type()->id(), [&](const auto& type) {
         using TRecordsWrap = std::decay_t<decltype(type)>;
-        using TRecordsArray = typename arrow::TypeTraits<typename TRecordsWrap::T>::ArrayType;
-        if constexpr (arrow::has_c_type<typename TRecordsWrap::T>()) {
+        using TRecordsArray = typename arrow20::TypeTraits<typename TRecordsWrap::T>::ArrayType;
+        if constexpr (arrow20::has_c_type<typename TRecordsWrap::T>()) {
             const auto* arrRecordsImpl = static_cast<const TRecordsArray*>(recordsNew.get());
             for (ui32 i = 0; i < arrRecordsImpl->length() && markCount < mask.size(); ++i) {
                 if (!arrRecordsImpl->IsNull(i) && !mask[arrRecordsImpl->Value(i)]) {
@@ -73,7 +73,7 @@ ui32 TDictionaryArray::GetIndexImpl(const ui32 index) const {
     std::optional<ui32> result;
     AFL_VERIFY(SwitchType(ArrayRecords->type()->id(), [&](const auto type) {
         using TWrap = std::decay_t<decltype(type)>;
-        using TArray = typename arrow::TypeTraits<typename TWrap::T>::ArrayType;
+        using TArray = typename arrow20::TypeTraits<typename TWrap::T>::ArrayType;
         if constexpr (type.IsIndexType()) {
             const auto* arr = static_cast<const TArray*>(ArrayRecords.get());
             result = arr->Value(index);
@@ -86,8 +86,8 @@ ui32 TDictionaryArray::GetIndexImpl(const ui32 index) const {
     return *result;
 }
 
-std::shared_ptr<arrow::Scalar> TDictionaryArray::DoGetMaxScalar() const {
-    std::shared_ptr<arrow::Scalar> result;
+std::shared_ptr<arrow20::Scalar> TDictionaryArray::DoGetMaxScalar() const {
+    std::shared_ptr<arrow20::Scalar> result;
     if (!ArrayVariants->length()) {
         return result;
     }

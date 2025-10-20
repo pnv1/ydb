@@ -127,7 +127,7 @@ void AssertArrowValueResultsSize(const std::vector<TResultSet>& arrowResultSets,
 
         UNIT_ASSERT_C(!schema.empty(), "Schema must not be empty");
 
-        std::shared_ptr<arrow::Schema> arrowSchema = NArrow::DeserializeSchema(TString(schema));
+        std::shared_ptr<arrow20::Schema> arrowSchema = NArrow::DeserializeSchema(TString(schema));
 
         for (const auto& batch : batches) {
             auto arrowBatch = NArrow::DeserializeBatch(TString(batch), arrowSchema);
@@ -143,7 +143,7 @@ void AssertArrowValueResultsSize(const std::vector<TResultSet>& arrowResultSets,
     }
 }
 
-std::vector<std::shared_ptr<arrow::RecordBatch>> ExecuteAndCombineBatches(TQueryClient& client, const TString& query, bool assertSize = false, ui64 minBatchesCount = 1, TParams params = TParamsBuilder().Build()) {
+std::vector<std::shared_ptr<arrow20::RecordBatch>> ExecuteAndCombineBatches(TQueryClient& client, const TString& query, bool assertSize = false, ui64 minBatchesCount = 1, TParams params = TParamsBuilder().Build()) {
     auto arrowSettings = TExecuteQuerySettings().Format(TResultSet::EFormat::Arrow);
     auto arrowResponse = client.ExecuteQuery(query, TTxControl::BeginTx().CommitTx(), params, arrowSettings).GetValueSync();
     UNIT_ASSERT_C(arrowResponse.IsSuccess(), arrowResponse.GetIssues().ToString());
@@ -155,7 +155,7 @@ std::vector<std::shared_ptr<arrow::RecordBatch>> ExecuteAndCombineBatches(TQuery
         AssertArrowValueResultsSize(arrowResponse.GetResultSets(), valueResponse.GetResultSets());
     }
 
-    std::vector<std::shared_ptr<arrow::RecordBatch>> resultBatches;
+    std::vector<std::shared_ptr<arrow20::RecordBatch>> resultBatches;
 
     for (const auto& resultSet : arrowResponse.GetResultSets()) {
         const auto& schema = TArrowAccessor::GetArrowSchema(resultSet);
@@ -164,7 +164,7 @@ std::vector<std::shared_ptr<arrow::RecordBatch>> ExecuteAndCombineBatches(TQuery
         UNIT_ASSERT_C(!schema.empty(), "Schema must not be empty");
         UNIT_ASSERT_GE_C(batches.size(), minBatchesCount, "Batches count must be greater than or equal to " + ToString(minBatchesCount));
 
-        std::vector<std::shared_ptr<arrow::RecordBatch>> arrowBatches;
+        std::vector<std::shared_ptr<arrow20::RecordBatch>> arrowBatches;
         auto arrowSchema = NArrow::DeserializeSchema(TString(schema));
 
         for (const auto& batch : batches) {
@@ -191,10 +191,10 @@ std::string SerializeToBinaryJsonString(const TStringBuf json) {
 }
 
 void CompareCompressedAndDefaultBatches(TQueryClient& client, std::optional<TArrowFormatSettings::TCompressionCodec> codec, bool assertEqual = false) {
-    std::shared_ptr<arrow::Schema> schemaCompressedBatch;
+    std::shared_ptr<arrow20::Schema> schemaCompressedBatch;
     TString compressedBatch;
 
-    std::shared_ptr<arrow::Schema> schemaDefaultBatch;
+    std::shared_ptr<arrow20::Schema> schemaDefaultBatch;
     TString defaultBatch;
 
     {
@@ -235,7 +235,7 @@ void CompareCompressedAndDefaultBatches(TQueryClient& client, std::optional<TArr
 
     UNIT_ASSERT_VALUES_EQUAL(schemaCompressedBatch->ToString(), schemaDefaultBatch->ToString());
 
-    // TODO [ditimizhev@]: Assert arrow::Codec compression types instead of strings
+    // TODO [ditimizhev@]: Assert arrow20::Codec compression types instead of strings
     if (assertEqual) {
         UNIT_ASSERT_VALUES_EQUAL(compressedBatch, defaultBatch);
     } else {
@@ -256,9 +256,9 @@ void CompareCompressedAndDefaultBatches(TQueryClient& client, std::optional<TArr
     UNIT_ASSERT_VALUES_EQUAL(firstArrowBatch->ToString(), secondArrowBatch->ToString());
 }
 
-void ValidateOptionalColumn(const std::shared_ptr<arrow::Array>& array, int depth, bool isVariant) {
+void ValidateOptionalColumn(const std::shared_ptr<arrow20::Array>& array, int depth, bool isVariant) {
     if (depth == 0 && isVariant) {
-        UNIT_ASSERT_C(array->type()->id() == arrow::Type::DENSE_UNION, "Column type must be arrow::Type::DENSE_UNION");
+        UNIT_ASSERT_C(array->type()->id() == arrow20::Type::DENSE_UNION, "Column type must be arrow20::Type::DENSE_UNION");
         return;
     }
 
@@ -266,9 +266,9 @@ void ValidateOptionalColumn(const std::shared_ptr<arrow::Array>& array, int dept
         return;
     }
 
-    UNIT_ASSERT_C(array->type()->id() == arrow::Type::STRUCT, "Column type must be arrow::Type::STRUCT");
+    UNIT_ASSERT_C(array->type()->id() == arrow20::Type::STRUCT, "Column type must be arrow20::Type::STRUCT");
 
-    auto structArray = static_pointer_cast<arrow::StructArray>(array);
+    auto structArray = static_pointer_cast<arrow20::StructArray>(array);
     UNIT_ASSERT_C(structArray->num_fields() == 1, "Struct array must have 1 field");
 
     auto innerArray = structArray->field(0);
@@ -1134,7 +1134,7 @@ Y_UNIT_TEST_SUITE(KqpResultSetFormats) {
         )", TTxControl::BeginTx().CommitTx(), settings).GetValueSync();
         UNIT_ASSERT_C(it.IsSuccess(), it.GetIssues().ToString());
 
-        std::shared_ptr<arrow::Schema> arrowSchema;
+        std::shared_ptr<arrow20::Schema> arrowSchema;
 
         size_t count = 0;
         for (;;) {
@@ -1194,7 +1194,7 @@ Y_UNIT_TEST_SUITE(KqpResultSetFormats) {
         )", TTxControl::BeginTx().CommitTx(), settings).GetValueSync();
         UNIT_ASSERT_C(it.IsSuccess(), it.GetIssues().ToString());
 
-        std::shared_ptr<arrow::Schema> arrowSchema;
+        std::shared_ptr<arrow20::Schema> arrowSchema;
 
         size_t count = 0;
         for (;;) {
@@ -1254,7 +1254,7 @@ Y_UNIT_TEST_SUITE(KqpResultSetFormats) {
         )", TTxControl::BeginTx().CommitTx(), settings).GetValueSync();
         UNIT_ASSERT_C(it.IsSuccess(), it.GetIssues().ToString());
 
-        std::shared_ptr<arrow::Schema> arrowSchema;
+        std::shared_ptr<arrow20::Schema> arrowSchema;
 
         size_t count = 0;
         for (;;) {
@@ -1315,7 +1315,7 @@ Y_UNIT_TEST_SUITE(KqpResultSetFormats) {
         )", TTxControl::BeginTx().CommitTx(), settings).GetValueSync();
         UNIT_ASSERT_C(it.IsSuccess(), it.GetIssues().ToString());
 
-        std::unordered_map<size_t, std::shared_ptr<arrow::Schema>> arrowSchemas;
+        std::unordered_map<size_t, std::shared_ptr<arrow20::Schema>> arrowSchemas;
         std::unordered_map<size_t, ui64> counts;
 
         for (;;) {
@@ -1394,7 +1394,7 @@ Y_UNIT_TEST_SUITE(KqpResultSetFormats) {
         )", TTxControl::BeginTx().CommitTx(), settings).GetValueSync();
         UNIT_ASSERT_C(it.IsSuccess(), it.GetIssues().ToString());
 
-        std::unordered_map<size_t, std::shared_ptr<arrow::Schema>> arrowSchemas;
+        std::unordered_map<size_t, std::shared_ptr<arrow20::Schema>> arrowSchemas;
         std::unordered_map<size_t, ui64> counts;
 
         for (;;) {
@@ -1679,7 +1679,7 @@ R"(column0:   -- is_valid: all not null
 
             UNIT_ASSERT_VALUES_EQUAL(batch->num_rows(), 1);
             UNIT_ASSERT_VALUES_EQUAL(batch->num_columns(), 1);
-            UNIT_ASSERT_C(batch->column(0)->type()->id() == arrow::Type::LIST, "Column type must be arrow::Type::LIST");
+            UNIT_ASSERT_C(batch->column(0)->type()->id() == arrow20::Type::LIST, "Column type must be arrow20::Type::LIST");
 
             const TString expected =
 R"(column0:   [
@@ -1710,7 +1710,7 @@ R"(column0:   [
 
             UNIT_ASSERT_VALUES_EQUAL(batch->num_rows(), 1);
             UNIT_ASSERT_VALUES_EQUAL(batch->num_columns(), 1);
-            UNIT_ASSERT_C(batch->column(0)->type()->id() == arrow::Type::LIST, "Column type must be arrow::Type::LIST");
+            UNIT_ASSERT_C(batch->column(0)->type()->id() == arrow20::Type::LIST, "Column type must be arrow20::Type::LIST");
 
             const TString expected =
 R"(column0:   [
@@ -1743,7 +1743,7 @@ R"(column0:   [
 
             UNIT_ASSERT_VALUES_EQUAL(batch->num_rows(), 9);
             UNIT_ASSERT_VALUES_EQUAL(batch->num_columns(), 1);
-            UNIT_ASSERT_C(batch->column(0)->type()->id() == arrow::Type::LIST, "Column type must be arrow::Type::LIST");
+            UNIT_ASSERT_C(batch->column(0)->type()->id() == arrow20::Type::LIST, "Column type must be arrow20::Type::LIST");
 
             const TString expected =
 R"(column0:   [
@@ -1805,7 +1805,7 @@ R"(column0:   [
 
             UNIT_ASSERT_VALUES_EQUAL(batch->num_rows(), 1);
             UNIT_ASSERT_VALUES_EQUAL(batch->num_columns(), 1);
-            UNIT_ASSERT_C(batch->column(0)->type()->id() == arrow::Type::STRUCT, "Column type must be arrow::Type::STRUCT");
+            UNIT_ASSERT_C(batch->column(0)->type()->id() == arrow20::Type::STRUCT, "Column type must be arrow20::Type::STRUCT");
 
             const TString expected =
 R"(column0:   -- is_valid: all not null
@@ -1830,7 +1830,7 @@ R"(column0:   -- is_valid: all not null
 
             UNIT_ASSERT_VALUES_EQUAL(batch->num_rows(), 1);
             UNIT_ASSERT_VALUES_EQUAL(batch->num_columns(), 1);
-            UNIT_ASSERT_C(batch->column(0)->type()->id() == arrow::Type::STRUCT, "Column type must be arrow::Type::STRUCT");
+            UNIT_ASSERT_C(batch->column(0)->type()->id() == arrow20::Type::STRUCT, "Column type must be arrow20::Type::STRUCT");
 
             const TString expected =
 R"(column0:   -- is_valid: all not null
@@ -1863,7 +1863,7 @@ R"(column0:   -- is_valid: all not null
 
             UNIT_ASSERT_VALUES_EQUAL(batch->num_rows(), 1);
             UNIT_ASSERT_VALUES_EQUAL(batch->num_columns(), 1);
-            UNIT_ASSERT_C(batch->column(0)->type()->id() == arrow::Type::STRUCT, "Column type must be arrow::Type::STRUCT");
+            UNIT_ASSERT_C(batch->column(0)->type()->id() == arrow20::Type::STRUCT, "Column type must be arrow20::Type::STRUCT");
 
             const TString expected = 
 R"(column0:   -- is_valid: all not null
@@ -1908,7 +1908,7 @@ R"(column0:   -- is_valid: all not null
 
             UNIT_ASSERT_VALUES_EQUAL(batch->num_rows(), 1);
             UNIT_ASSERT_VALUES_EQUAL(batch->num_columns(), 1);
-            UNIT_ASSERT_C(batch->column(0)->type()->id() == arrow::Type::STRUCT, "Column type must be arrow::Type::STRUCT");
+            UNIT_ASSERT_C(batch->column(0)->type()->id() == arrow20::Type::STRUCT, "Column type must be arrow20::Type::STRUCT");
 
             const TString expected =
 R"(column0:   -- is_valid: all not null
@@ -1954,7 +1954,7 @@ R"(column0:   -- is_valid: all not null
 
             UNIT_ASSERT_VALUES_EQUAL(batch->num_rows(), 1);
             UNIT_ASSERT_VALUES_EQUAL(batch->num_columns(), 1);
-            UNIT_ASSERT_C(batch->column(0)->type()->id() == arrow::Type::STRUCT, "Column type must be arrow::Type::STRUCT");
+            UNIT_ASSERT_C(batch->column(0)->type()->id() == arrow20::Type::STRUCT, "Column type must be arrow20::Type::STRUCT");
 
             const TString expected =
 R"(column0:   -- is_valid: all not null
@@ -1979,7 +1979,7 @@ R"(column0:   -- is_valid: all not null
 
             UNIT_ASSERT_VALUES_EQUAL(batch->num_rows(), 1);
             UNIT_ASSERT_VALUES_EQUAL(batch->num_columns(), 1);
-            UNIT_ASSERT_C(batch->column(0)->type()->id() == arrow::Type::STRUCT, "Column type must be arrow::Type::STRUCT");
+            UNIT_ASSERT_C(batch->column(0)->type()->id() == arrow20::Type::STRUCT, "Column type must be arrow20::Type::STRUCT");
 
             const TString expected =
 R"(column0:   -- is_valid: all not null
@@ -2012,7 +2012,7 @@ R"(column0:   -- is_valid: all not null
 
             UNIT_ASSERT_VALUES_EQUAL(batch->num_rows(), 1);
             UNIT_ASSERT_VALUES_EQUAL(batch->num_columns(), 1);
-            UNIT_ASSERT_C(batch->column(0)->type()->id() == arrow::Type::DENSE_UNION, "Column type must be arrow::Type::DENSE_UNION");
+            UNIT_ASSERT_C(batch->column(0)->type()->id() == arrow20::Type::DENSE_UNION, "Column type must be arrow20::Type::DENSE_UNION");
 
             const TString expected =
 R"(column0:   -- is_valid: all not null

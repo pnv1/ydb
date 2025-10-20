@@ -187,10 +187,10 @@ Y_UNIT_TEST_SUITE(KqpBoolColumnShard) {
         UNIT_ASSERT_C(result.IsSuccess(), result.GetIssues().ToString());
     }
 
-    std::shared_ptr<arrow::RecordBatch> MakeArrowBatch(const TVector<TRow>& rows) {
-        arrow::Int32Builder idBuilder;
-        arrow::Int64Builder intBuilder;
-        arrow::BooleanBuilder boolBuilder;
+    std::shared_ptr<arrow20::RecordBatch> MakeArrowBatch(const TVector<TRow>& rows) {
+        arrow20::Int32Builder idBuilder;
+        arrow20::Int64Builder intBuilder;
+        arrow20::BooleanBuilder boolBuilder;
         for (auto&& r : rows) {
             Y_ABORT_UNLESS(idBuilder.Append(r.Id).ok());
             Y_ABORT_UNLESS(intBuilder.Append(r.IntVal).ok());
@@ -201,21 +201,21 @@ Y_UNIT_TEST_SUITE(KqpBoolColumnShard) {
             }
         }
 
-        std::shared_ptr<arrow::Array> idArr;
+        std::shared_ptr<arrow20::Array> idArr;
         Y_ABORT_UNLESS(idBuilder.Finish(&idArr).ok());
-        std::shared_ptr<arrow::Array> intArr;
+        std::shared_ptr<arrow20::Array> intArr;
         Y_ABORT_UNLESS(intBuilder.Finish(&intArr).ok());
-        std::shared_ptr<arrow::Array> boolArr;
+        std::shared_ptr<arrow20::Array> boolArr;
         Y_ABORT_UNLESS(boolBuilder.Finish(&boolArr).ok());
-        auto schema = arrow::schema({ arrow::field("id", arrow::int32(), /*nullable*/ false), arrow::field("int", arrow::int64()),
-            arrow::field("b", arrow::boolean()) });
-        return arrow::RecordBatch::Make(schema, rows.size(), { idArr, intArr, boolArr });
+        auto schema = arrow20::schema({ arrow20::field("id", arrow20::int32(), /*nullable*/ false), arrow20::field("int", arrow20::int64()),
+            arrow20::field("b", arrow20::boolean()) });
+        return arrow20::RecordBatch::Make(schema, rows.size(), { idArr, intArr, boolArr });
     }
 
-    std::shared_ptr<arrow::RecordBatch> MakeArrowBatchWithSecondColumn(const TVector<TRow>& rows, const TString& secondName) {
-        arrow::Int32Builder idBuilder;
-        arrow::Int64Builder secondBuilder;
-        arrow::BooleanBuilder boolBuilder;
+    std::shared_ptr<arrow20::RecordBatch> MakeArrowBatchWithSecondColumn(const TVector<TRow>& rows, const TString& secondName) {
+        arrow20::Int32Builder idBuilder;
+        arrow20::Int64Builder secondBuilder;
+        arrow20::BooleanBuilder boolBuilder;
         for (auto&& r : rows) {
             Y_ABORT_UNLESS(idBuilder.Append(r.Id).ok());
             Y_ABORT_UNLESS(secondBuilder.Append(r.IntVal).ok());
@@ -226,15 +226,15 @@ Y_UNIT_TEST_SUITE(KqpBoolColumnShard) {
             }
         }
 
-        std::shared_ptr<arrow::Array> idArr;
+        std::shared_ptr<arrow20::Array> idArr;
         Y_ABORT_UNLESS(idBuilder.Finish(&idArr).ok());
-        std::shared_ptr<arrow::Array> secondArr;
+        std::shared_ptr<arrow20::Array> secondArr;
         Y_ABORT_UNLESS(secondBuilder.Finish(&secondArr).ok());
-        std::shared_ptr<arrow::Array> boolArr;
+        std::shared_ptr<arrow20::Array> boolArr;
         Y_ABORT_UNLESS(boolBuilder.Finish(&boolArr).ok());
-        auto schema = arrow::schema({ arrow::field("id", arrow::int32(), /*nullable*/ false), arrow::field(secondName, arrow::int64()),
-            arrow::field("b", arrow::boolean()) });
-        return arrow::RecordBatch::Make(schema, rows.size(), { idArr, secondArr, boolArr });
+        auto schema = arrow20::schema({ arrow20::field("id", arrow20::int32(), /*nullable*/ false), arrow20::field(secondName, arrow20::int64()),
+            arrow20::field("b", arrow20::boolean()) });
+        return arrow20::RecordBatch::Make(schema, rows.size(), { idArr, secondArr, boolArr });
     }
 
     void BulkUpsertRowTableArrow(TTestHelper& helper, const TString& name, const TVector<TRow>& rows) {

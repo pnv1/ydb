@@ -1,5 +1,5 @@
 #pragma once
-#include <contrib/libs/apache/arrow/cpp/src/arrow/array/array_base.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/array/array_base.h>
 #include <util/system/yassert.h>
 
 namespace NKikimr::NArrow {
@@ -70,6 +70,7 @@ public:
             case arrow20::Type::MAX_ID:
             case arrow20::Type::SPARSE_UNION:
             case arrow20::Type::STRUCT:
+            default:
                 Y_ABORT("not implemented");
                 break;
         }
@@ -108,7 +109,7 @@ public:
 
     template <typename T>
     static std::partial_ordering CompareValueNotNull(const T& x, const T& y) {
-        if constexpr (std::is_same_v<T, arrow20::util::string_view>) {
+        if constexpr (std::is_same_v<T,std::string_view>) {
             size_t minSize = (x.size() < y.size()) ? x.size() : y.size();
             int cmp = memcmp(x.data(), y.data(), minSize);
             if (cmp < 0) {

@@ -1,7 +1,7 @@
 #pragma once
 #include <ydb/services/ext_index/metadata/object.h>
 #include <ydb/services/metadata/ds_table/scheme_describe.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/record_batch.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/record_batch.h>
 #include <ydb/core/tx/tx_proxy/proxy.h>
 #include <ydb/services/ext_index/common/service.h>
 
@@ -16,7 +16,7 @@ public:
 
 class TIndexUpsertActor: public NActors::TActorBootstrapped<TIndexUpsertActor> {
 private:
-    std::shared_ptr<arrow::RecordBatch> Data;
+    std::shared_ptr<arrow20::RecordBatch> Data;
     const NMetadata::NCSIndex::TObject IndexInfo;
     std::vector<TString> PKFields;
     TString IndexTablePath;
@@ -35,7 +35,7 @@ protected:
 public:
     void Bootstrap();
 
-    TIndexUpsertActor(const std::shared_ptr<arrow::RecordBatch>& data, const NMetadata::NCSIndex::TObject& indexInfo,
+    TIndexUpsertActor(const std::shared_ptr<arrow20::RecordBatch>& data, const NMetadata::NCSIndex::TObject& indexInfo,
         const std::vector<TString>& pKFields, const TString& indexTablePath, IIndexUpsertController::TPtr externalController)
         : Data(data)
         , IndexInfo(indexInfo)

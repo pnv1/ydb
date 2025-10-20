@@ -9,8 +9,8 @@
 #include <util/memory/pool.h>
 #include <library/cpp/containers/stack_vector/stack_vec.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/builder.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/record_batch.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/builder.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/record_batch.h>
 
 #include <memory>
 #include <vector>
@@ -50,27 +50,27 @@ static bool ConvertData(TCell& cell, const NScheme::TTypeInfo& colType, TMemoryP
     return true;
 }
 
-static arrow::Status ConvertColumn(
-    const NScheme::TTypeInfo colType, std::shared_ptr<arrow::Array>& column, std::shared_ptr<arrow::Field>& field, const bool allowInfDouble) {
+static arrow20::Status ConvertColumn(
+    const NScheme::TTypeInfo colType, std::shared_ptr<arrow20::Array>& column, std::shared_ptr<arrow20::Field>& field, const bool allowInfDouble) {
     switch (colType.GetTypeId()) {
     case NScheme::NTypeIds::Decimal:
-        return arrow::Status::OK();
+        return arrow20::Status::OK();
     case NScheme::NTypeIds::JsonDocument: {
-        const static TSet<arrow::Type::type> jsonDocArrowTypes{ arrow::Type::BINARY, arrow::Type::STRING };
+        const static TSet<arrow20::Type::type> jsonDocArrowTypes{ arrow20::Type::BINARY, arrow20::Type::STRING };
         if (!jsonDocArrowTypes.contains(column->type()->id())) {
-            return arrow::Status::TypeError("Cannot convert JsonDocument to ", column->type()->ToString());
+            return arrow20::Status::TypeError("Cannot convert JsonDocument to ", column->type()->ToString());
         }
         break;
     }
     default:
-        if (column->type()->id() != arrow::Type::BINARY) {
-            return arrow::Status::TypeError("Cannot convert ", NScheme::TypeName(colType), " to ", column->type()->ToString());
+        if (column->type()->id() != arrow20::Type::BINARY) {
+            return arrow20::Status::TypeError("Cannot convert ", NScheme::TypeName(colType), " to ", column->type()->ToString());
         }
         break;
     }
 
-    auto& binaryArray = static_cast<arrow::BinaryArray&>(*column);
-    arrow::BinaryBuilder builder;
+    auto& binaryArray = static_cast<arrow20::BinaryArray&>(*column);
+    arrow20::BinaryBuilder builder;
     builder.Reserve(binaryArray.length()).ok();
     // TODO: ReserveData
 
@@ -80,7 +80,7 @@ static arrow::Status ConvertColumn(
                 auto value = binaryArray.Value(i);
                 const auto dyNumber = NDyNumber::ParseDyNumberString(TStringBuf(value.data(), value.size()));
                 if (!dyNumber.Defined()) {
-                    return arrow::Status::SerializationError("Cannot parse dy number: ", value);
+                    return arrow20::Status::SerializationError("Cannot parse dy number: ", value);
                 }
                 auto appendResult = builder.Append((*dyNumber).data(), (*dyNumber).size());
                 if (appendResult.ok()) {
@@ -105,7 +105,7 @@ static arrow::Status ConvertColumn(
                 } else {
                     const auto maybeBinaryJson = NBinaryJson::SerializeToBinaryJson(valueBuf, allowInfDouble);
                     if (std::holds_alternative<TString>(maybeBinaryJson)) {
-                        return arrow::Status::SerializationError("Cannot serialize json (", std::get<TString>(maybeBinaryJson),
+                        return arrow20::Status::SerializationError("Cannot serialize json (", std::get<TString>(maybeBinaryJson),
                             "): ", valueBuf.SubStr(0, Min(valueBuf.Size(), size_t{1024})));
                     }
                     const auto& binaryJson = std::get<NBinaryJson::TBinaryJson>(maybeBinaryJson);
@@ -121,24 +121,24 @@ static arrow::Status ConvertColumn(
             break;
     }
 
-    std::shared_ptr<arrow::BinaryArray> result;
+    std::shared_ptr<arrow20::BinaryArray> result;
     auto finishResult = builder.Finish(&result);
     if (!finishResult.ok()) {
         return finishResult;
     }
 
     column = result;
-    if (colType.GetTypeId() == NScheme::NTypeIds::JsonDocument && field->type()->id() == arrow::Type::STRING) {
-        field = std::make_shared<arrow::Field>(field->name(), std::make_shared<arrow::BinaryType>());
+    if (colType.GetTypeId() == NScheme::NTypeIds::JsonDocument && field->type()->id() == arrow20::Type::STRING) {
+        field = std::make_shared<arrow20::Field>(field->name(), std::make_shared<arrow20::BinaryType>());
     }
 
-    return arrow::Status::OK();
+    return arrow20::Status::OK();
 }
 
-arrow::Result<std::shared_ptr<arrow::RecordBatch>> ConvertColumns(
-    const std::shared_ptr<arrow::RecordBatch>& batch, const THashMap<TString, NScheme::TTypeInfo>& columnsToConvert, const bool allowInfDouble) {
-    std::vector<std::shared_ptr<arrow::Array>> columns = batch->columns();
-    std::vector<std::shared_ptr<arrow::Field>> fields = batch->schema()->fields();
+arrow20::Result<std::shared_ptr<arrow20::RecordBatch>> ConvertColumns(
+    const std::shared_ptr<arrow20::RecordBatch>& batch, const THashMap<TString, NScheme::TTypeInfo>& columnsToConvert, const bool allowInfDouble) {
+    std::vector<std::shared_ptr<arrow20::Array>> columns = batch->columns();
+    std::vector<std::shared_ptr<arrow20::Field>> fields = batch->schema()->fields();
     Y_ABORT_UNLESS(columns.size() == fields.size());
     for (i32 i = 0; i < batch->num_columns(); ++i) {
         auto& colName = batch->column_name(i);
@@ -146,73 +146,73 @@ arrow::Result<std::shared_ptr<arrow::RecordBatch>> ConvertColumns(
         if (it != columnsToConvert.end()) {
             auto convertResult = ConvertColumn(it->second, columns[i], fields[i], allowInfDouble);
             if (!convertResult.ok()) {
-                return arrow::Status::FromArgs(convertResult.code(), "column ", colName, ": ", convertResult.ToString());
+                return arrow20::Status::FromArgs(convertResult.code(), "column ", colName, ": ", convertResult.ToString());
             }
         }
     }
-    return arrow::RecordBatch::Make(std::make_shared<arrow::Schema>(std::move(fields)), batch->num_rows(), std::move(columns));
+    return arrow20::RecordBatch::Make(std::make_shared<arrow20::Schema>(std::move(fields)), batch->num_rows(), std::move(columns));
 }
 
-static std::shared_ptr<arrow::Array> InplaceConvertColumn(const std::shared_ptr<arrow::Array>& column,
+static std::shared_ptr<arrow20::Array> InplaceConvertColumn(const std::shared_ptr<arrow20::Array>& column,
                                                    NScheme::TTypeInfo colType) {
     switch (colType.GetTypeId()) {
         case NScheme::NTypeIds::Bytes: {
-            Y_ABORT_UNLESS(column->type()->id() == arrow::Type::STRING);
-            return std::make_shared<arrow::BinaryArray>(
-                arrow::ArrayData::Make(arrow::binary(), column->data()->length,
+            Y_ABORT_UNLESS(column->type()->id() == arrow20::Type::STRING);
+            return std::make_shared<arrow20::BinaryArray>(
+                arrow20::ArrayData::Make(arrow20::binary(), column->data()->length,
                     column->data()->buffers, column->data()->null_count, column->data()->offset));
         }
         case NScheme::NTypeIds::Date: {
-            Y_ABORT_UNLESS(arrow::is_primitive(column->type()->id()));
-            Y_ABORT_UNLESS(arrow::bit_width(column->type()->id()) == 16);
+            Y_ABORT_UNLESS(arrow20::is_primitive(column->type()->id()));
+            Y_ABORT_UNLESS(arrow20::bit_width(column->type()->id()) == 16);
 
             auto newData = column->data()->Copy();
-            newData->type = arrow::uint16();
-            return std::make_shared<arrow::NumericArray<arrow::UInt16Type>>(newData);
+            newData->type = arrow20::uint16();
+            return std::make_shared<arrow20::NumericArray<arrow20::UInt16Type>>(newData);
         }
         case NScheme::NTypeIds::Datetime: {
-            Y_ABORT_UNLESS(arrow::is_primitive(column->type()->id()));
-            Y_ABORT_UNLESS(arrow::bit_width(column->type()->id()) == 32);
+            Y_ABORT_UNLESS(arrow20::is_primitive(column->type()->id()));
+            Y_ABORT_UNLESS(arrow20::bit_width(column->type()->id()) == 32);
 
             auto newData = column->data()->Copy();
-            newData->type = arrow::uint32();
-            return std::make_shared<arrow::NumericArray<arrow::UInt32Type>>(newData);
+            newData->type = arrow20::uint32();
+            return std::make_shared<arrow20::NumericArray<arrow20::UInt32Type>>(newData);
         }
         case NScheme::NTypeIds::Timestamp: {
-            Y_ABORT_UNLESS(arrow::is_primitive(column->type()->id()));
-            Y_ABORT_UNLESS(arrow::bit_width(column->type()->id()) == 64);
+            Y_ABORT_UNLESS(arrow20::is_primitive(column->type()->id()));
+            Y_ABORT_UNLESS(arrow20::bit_width(column->type()->id()) == 64);
 
             auto newData = column->data()->Copy();
-            newData->type = arrow::timestamp(arrow::TimeUnit::MICRO);
-            return std::make_shared<arrow::TimestampArray>(newData);
+            newData->type = arrow20::timestamp(arrow20::TimeUnit::MICRO);
+            return std::make_shared<arrow20::TimestampArray>(newData);
         }
         case NScheme::NTypeIds::Date32: {
 
-            Y_ABORT_UNLESS(arrow::bit_width(column->type()->id()) == 32);
+            Y_ABORT_UNLESS(arrow20::bit_width(column->type()->id()) == 32);
 
             auto newData = column->data()->Copy();
-            newData->type = arrow::int32();
-            return std::make_shared<arrow::NumericArray<arrow::Int32Type>>(newData);
+            newData->type = arrow20::int32();
+            return std::make_shared<arrow20::NumericArray<arrow20::Int32Type>>(newData);
         }
         case NScheme::NTypeIds::Timestamp64:
         case NScheme::NTypeIds::Interval64:
         case NScheme::NTypeIds::Datetime64: {
 
-            Y_ABORT_UNLESS(arrow::bit_width(column->type()->id()) == 64);
+            Y_ABORT_UNLESS(arrow20::bit_width(column->type()->id()) == 64);
 
             auto newData = column->data()->Copy();
-            newData->type = arrow::int64();
-            return std::make_shared<arrow::NumericArray<arrow::Int64Type>>(newData);
+            newData->type = arrow20::int64();
+            return std::make_shared<arrow20::NumericArray<arrow20::Int64Type>>(newData);
         }
         default:
             return {};
     }
 }
 
-arrow::Result<std::shared_ptr<arrow::RecordBatch>> InplaceConvertColumns(const std::shared_ptr<arrow::RecordBatch>& batch,
+arrow20::Result<std::shared_ptr<arrow20::RecordBatch>> InplaceConvertColumns(const std::shared_ptr<arrow20::RecordBatch>& batch,
                                                           const THashMap<TString, NScheme::TTypeInfo>& columnsToConvert) {
-    std::vector<std::shared_ptr<arrow::Array>> columns = batch->columns();
-    std::vector<std::shared_ptr<arrow::Field>> fields;
+    std::vector<std::shared_ptr<arrow20::Array>> columns = batch->columns();
+    std::vector<std::shared_ptr<arrow20::Field>> fields;
     fields.reserve(batch->num_columns());
 
     for (i32 i = 0; i < batch->num_columns(); ++i) {
@@ -222,10 +222,10 @@ arrow::Result<std::shared_ptr<arrow::RecordBatch>> InplaceConvertColumns(const s
         if (it != columnsToConvert.end()) {
             columns[i] = InplaceConvertColumn(columns[i], it->second);
         }
-        fields.push_back(std::make_shared<arrow::Field>(colName, columns[i]->type(), origType->nullable()));
+        fields.push_back(std::make_shared<arrow20::Field>(colName, columns[i]->type(), origType->nullable()));
     }
-    auto resultSchemaFixed = std::make_shared<arrow::Schema>(std::move(fields));
-    auto convertedBatch = arrow::RecordBatch::Make(resultSchemaFixed, batch->num_rows(), std::move(columns));
+    auto resultSchemaFixed = std::make_shared<arrow20::Schema>(std::move(fields));
+    auto convertedBatch = arrow20::RecordBatch::Make(resultSchemaFixed, batch->num_rows(), std::move(columns));
 
     Y_ABORT_UNLESS(convertedBatch->Validate().ok());
     Y_DEBUG_ABORT_UNLESS(convertedBatch->ValidateFull().ok());
@@ -274,8 +274,8 @@ bool TArrowToYdbConverter::NeedConversion(const NScheme::TTypeInfo& typeInReques
     return false;
 }
 
-bool TArrowToYdbConverter::Process(const arrow::RecordBatch& batch, TString& errorMessage) {
-    std::vector<std::shared_ptr<arrow::Array>> allColumns;
+bool TArrowToYdbConverter::Process(const arrow20::RecordBatch& batch, TString& errorMessage) {
+    std::vector<std::shared_ptr<arrow20::Array>> allColumns;
     allColumns.reserve(YdbSchema_.size());
 
     // Shrink and reorder columns
@@ -312,7 +312,7 @@ bool TArrowToYdbConverter::Process(const arrow::RecordBatch& batch, TString& err
                     if (column->IsNull(realRow)) {
                         cells[i][col] = TCell();
                     } else {
-                        cells[i][col] = MakeCell<typename arrow::TypeTraits<TType>::ArrayType>(column, realRow);
+                        cells[i][col] = MakeCell<typename arrow20::TypeTraits<TType>::ArrayType>(column, realRow);
                     }
                 }
                 return true;
@@ -361,7 +361,7 @@ bool TArrowToYdbConverter::Process(const arrow::RecordBatch& batch, TString& err
 
             bool success = SwitchYqlTypeToArrowType(colType, [&]<typename TType>(TTypeWrapper<TType> typeHolder) {
                 Y_UNUSED(typeHolder);
-                curCell = MakeCell<typename arrow::TypeTraits<TType>::ArrayType>(column, row);
+                curCell = MakeCell<typename arrow20::TypeTraits<TType>::ArrayType>(column, row);
                 return true;
             });
 

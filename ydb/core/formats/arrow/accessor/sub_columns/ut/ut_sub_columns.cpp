@@ -17,13 +17,13 @@ Y_UNIT_TEST_SUITE(SubColumnsArrayAccessor) {
         return std::regex_replace(str, std::regex(" |\\n"), "");
     }
 
-    TString PrintBinaryJsons(const std::shared_ptr<arrow::ChunkedArray>& array) {
+    TString PrintBinaryJsons(const std::shared_ptr<arrow20::ChunkedArray>& array) {
         TStringBuilder sb;
         sb << "[";
         for (auto&& i : array->chunks()) {
             sb << "[";
-            AFL_VERIFY(i->type()->id() == arrow::binary()->id());
-            auto views = std::static_pointer_cast<arrow::BinaryArray>(i);
+            AFL_VERIFY(i->type()->id() == arrow20::binary()->id());
+            auto views = std::static_pointer_cast<arrow20::BinaryArray>(i);
             for (ui32 r = 0; r < views->length(); ++r) {
                 if (views->IsNull(r)) {
                     sb << "null";
@@ -60,7 +60,7 @@ Y_UNIT_TEST_SUITE(SubColumnsArrayAccessor) {
                 R"({"a" : 5, "b1" : 5})",
             };
 
-            TTrivialArray::TPlainBuilder<arrow::BinaryType> arrBuilder;
+            TTrivialArray::TPlainBuilder<arrow20::BinaryType> arrBuilder;
             ui32 idx = 0;
             for (auto&& i : jsons) {
                 if (i != "null") {
@@ -152,7 +152,7 @@ Y_UNIT_TEST_SUITE(SubColumnsArrayAccessor) {
                 R"({"a" : 5, "b1" : 5})",
             };
 
-            TTrivialArray::TPlainBuilder<arrow::BinaryType> arrBuilder;
+            TTrivialArray::TPlainBuilder<arrow20::BinaryType> arrBuilder;
             ui32 idx = 0;
             for (auto&& i : jsons) {
                 if (i != "null") {

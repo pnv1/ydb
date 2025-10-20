@@ -3,7 +3,7 @@ LIBRARY()
 ENABLE(YQL_STYLE_CPP)
 
 PEERDIR(
-    contrib/libs/apache/arrow
+    contrib/libs/apache/arrow_next
     yql/essentials/minikql/arrow
     yql/essentials/providers/common/codec
     yql/essentials/public/udf/arrow

@@ -1,7 +1,6 @@
 #pragma once
-#include <contrib/libs/apache/arrow/cpp/src/arrow/type.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/type_traits.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/util/string_view.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/type.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/type_traits.h>
 
 #include <library/cpp/testing/unittest/registar.h>
 
@@ -44,7 +43,7 @@ private:
 
 public:
     using TValue = std::conditional_t<std::is_same_v<TArrowType, TStringType>, arrow20::StringType, TArrowType>;
-    using ValueType = std::conditional_t<std::is_same_v<TArrowType, TStringType>, arrow20::util::string_view, CType>;
+    using ValueType = std::conditional_t<std::is_same_v<TArrowType, TStringType>, std::string_view, CType>;
 
     static CType GetRandomNumberNotEqDef(CType defaultValue) {
         CType result;
@@ -80,7 +79,7 @@ public:
     }
 
     const ValueType Convert(const TString& str) const {
-        return arrow20::util::string_view(str.data(), str.size());
+        return std::string_view(str.data(), str.size());
     }
 
     ValueType GetValue(const ui32 idx) const {
@@ -112,7 +111,7 @@ private:
 
 public:
     using TValue = arrow20::StringType;
-    arrow20::util::string_view GetValue(const ui32 idx) const;
+    std::string_view GetValue(const ui32 idx) const;
 
     TStringPoolFiller(const ui32 poolSize, const ui32 strLen, const TString& defaultValue = "", const double defaultValueFrq = 0);
 };

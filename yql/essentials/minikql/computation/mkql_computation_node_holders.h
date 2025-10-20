@@ -12,7 +12,7 @@
 #include <yql/essentials/minikql/mkql_type_ops.h>
 #include <yql/essentials/minikql/mkql_type_builder.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/datum.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/datum.h>
 
 #include <util/generic/maybe.h>
 #include <util/memory/pool.h>
@@ -594,7 +594,7 @@ private:
 
 class TArrowBlock: public TComputationValue<TArrowBlock> {
 public:
-    explicit TArrowBlock(TMemoryUsageInfo* memInfo, arrow::Datum&& datum)
+    explicit TArrowBlock(TMemoryUsageInfo* memInfo, arrow20::Datum&& datum)
         : TComputationValue(memInfo)
         , Datum_(std::move(datum))
     {
@@ -607,7 +607,7 @@ public:
 
     inline static const TArrowBlock& From(NUdf::TUnboxedValuePod&& value) = delete;
 
-    inline const arrow::Datum& GetDatum() const {
+    inline const arrow20::Datum& GetDatum() const {
         return Datum_;
     }
 
@@ -620,7 +620,7 @@ public:
     }
 
 private:
-    arrow::Datum Datum_;
+    arrow20::Datum Datum_;
 };
 
 template <class IFace>
@@ -883,7 +883,7 @@ public:
 
     NUdf::TUnboxedValuePod CreateDirectArrayHolder(ui64 size, NUdf::TUnboxedValue*& itemsPtr) const;
 
-    NUdf::TUnboxedValuePod CreateArrowBlock(arrow::Datum&& datum) const;
+    NUdf::TUnboxedValuePod CreateArrowBlock(arrow20::Datum&& datum) const;
 
     NUdf::TUnboxedValuePod VectorAsArray(TUnboxedValueVector& values) const;
 

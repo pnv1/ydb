@@ -235,7 +235,7 @@ public:
         return !Portions.size();
     }
 
-    NArrow::NMerger::TIntervalPositions GetCheckPositions(const std::shared_ptr<arrow::Schema>& pkSchema, const bool withMoved);
+    NArrow::NMerger::TIntervalPositions GetCheckPositions(const std::shared_ptr<arrow20::Schema>& pkSchema, const bool withMoved);
     std::vector<NArrow::NMerger::TSortableBatchPosition> GetFinishPoints(const bool withMoved);
 
     void AddCurrentLevelPortion(const TPortionInfo::TConstPtr& portion, std::optional<TPortionsChain>&& chain, const bool repackMoved) {
@@ -331,7 +331,7 @@ private:
         const std::vector<TPortionInfo::TPtr>& add, const std::vector<TPortionInfo::TPtr>& remove) = 0;
     virtual ui64 DoGetWeight(bool highPriority) const = 0;
     virtual TInstant DoGetWeightExpirationInstant() const = 0;
-    virtual NArrow::NMerger::TIntervalPositions DoGetBucketPositions(const std::shared_ptr<arrow::Schema>& pkSchema) const = 0;
+    virtual NArrow::NMerger::TIntervalPositions DoGetBucketPositions(const std::shared_ptr<arrow20::Schema>& pkSchema) const = 0;
     virtual TCompactionTaskData DoGetOptimizationTask() const = 0;
     virtual std::optional<TPortionsChain> DoGetAffectedPortions(const NArrow::TSimpleRow& from, const NArrow::TSimpleRow& to) const = 0;
     virtual ui64 DoGetAffectedPortionBytes(const NArrow::TSimpleRow& from, const NArrow::TSimpleRow& to) const = 0;
@@ -499,7 +499,7 @@ public:
         return DoGetWeightExpirationInstant();
     }
 
-    NArrow::NMerger::TIntervalPositions GetBucketPositions(const std::shared_ptr<arrow::Schema>& pkSchema) const {
+    NArrow::NMerger::TIntervalPositions GetBucketPositions(const std::shared_ptr<arrow20::Schema>& pkSchema) const {
         return DoGetBucketPositions(pkSchema);
     }
 

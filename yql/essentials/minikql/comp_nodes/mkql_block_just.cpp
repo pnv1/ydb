@@ -15,49 +15,69 @@ namespace {
 template <bool Trivial>
 class TJustBlockExec {
 public:
-    TJustBlockExec(const std::shared_ptr<arrow::DataType>& returnArrowType)
+    TJustBlockExec(const std::shared_ptr<arrow20::DataType>& returnArrowType)
         : ReturnArrowType(returnArrowType)
     {
     }
 
-    arrow::Status Exec(arrow::compute::KernelContext*, const arrow::compute::ExecBatch& batch, arrow::Datum* res) const {
-        arrow::Datum inputDatum = batch.values[0];
+    arrow20::Status Exec(arrow20::compute::KernelContext*, const arrow20::compute::ExecSpan& batch, arrow20::compute::ExecResult* res) const {
+        const auto& inputArg = batch[0];
         if (Trivial) {
-            *res = inputDatum;
-            return arrow::Status::OK();
+            if (inputArg.is_scalar()) {
+                auto arrayResult = arrow20::MakeArrayFromScalar(*inputArg.scalar, 1);
+                if (!arrayResult.ok()) {
+                    return arrayResult.status();
+                }
+                res->value = (*arrayResult)->data();
+            } else {
+                res->value = inputArg.array.ToArray()->data();
+            }
+            return arrow20::Status::OK();
         }
 
-        if (inputDatum.is_scalar()) {
-            std::vector<std::shared_ptr<arrow::Scalar>> arrowValue;
-            arrowValue.emplace_back(inputDatum.scalar());
-            *res = arrow::Datum(std::make_shared<arrow::StructScalar>(arrowValue, ReturnArrowType));
+        if (inputArg.is_scalar()) {
+            std::vector<std::shared_ptr<arrow20::Scalar>> arrowValue;
+            arrowValue.emplace_back(inputArg.scalar);
+            auto structScalar = std::make_shared<arrow20::StructScalar>(arrowValue, ReturnArrowType);
+            auto arrayResult = arrow20::MakeArrayFromScalar(*structScalar, 1);
+            if (!arrayResult.ok()) {
+                return arrayResult.status();
+            }
+            res->value = (*arrayResult)->data();
         } else {
-            auto array = inputDatum.array();
-            auto newArrayData = arrow::ArrayData::Make(ReturnArrowType, array->length, {nullptr}, 0, 0);
+            auto array = inputArg.array.ToArray()->data();
+            auto newArrayData = arrow20::ArrayData::Make(ReturnArrowType, array->length, {nullptr}, 0, 0);
             newArrayData->child_data.push_back(array);
-            *res = arrow::Datum(newArrayData);
+            res->value = newArrayData;
         }
 
-        return arrow::Status::OK();
+        return arrow20::Status::OK();
     }
 
 private:
-    const std::shared_ptr<arrow::DataType> ReturnArrowType;
+    const std::shared_ptr<arrow20::DataType> ReturnArrowType;
 };
 
 template <bool Trivial>
-std::shared_ptr<arrow::compute::ScalarKernel> MakeBlockJustKernel(const TVector<TType*>& argTypes, TType* resultType) {
+arrow20::Status BlockJustKernelExec(arrow20::compute::KernelContext* ctx, const arrow20::compute::ExecSpan& batch, arrow20::compute::ExecResult* res) {
+    using TExec = TJustBlockExec<Trivial>;
+    auto* exec = reinterpret_cast<TExec*>(ctx->kernel()->data.get());
+    return exec->Exec(ctx, batch, res);
+}
+
+template <bool Trivial>
+std::shared_ptr<arrow20::compute::ScalarKernel> MakeBlockJustKernel(const TVector<TType*>& argTypes, TType* resultType) {
     using TExec = TJustBlockExec<Trivial>;
 
-    std::shared_ptr<arrow::DataType> returnArrowType;
+    std::shared_ptr<arrow20::DataType> returnArrowType;
     MKQL_ENSURE(ConvertArrowType(AS_TYPE(TBlockType, resultType)->GetItemType(), returnArrowType), "Unsupported arrow type");
     auto exec = std::make_shared<TExec>(returnArrowType);
-    auto kernel = std::make_shared<arrow::compute::ScalarKernel>(ConvertToInputTypes(argTypes), ConvertToOutputType(resultType),
-                                                                 [exec](arrow::compute::KernelContext* ctx, const arrow::compute::ExecBatch& batch, arrow::Datum* res) {
-                                                                     return exec->Exec(ctx, batch, res);
-                                                                 });
+    auto kernel = std::make_shared<arrow20::compute::ScalarKernel>(
+        arrow20::compute::KernelSignature::Make(ConvertToInputTypes(argTypes), ConvertToOutputType(resultType)),
+        BlockJustKernelExec<Trivial>);
 
-    kernel->null_handling = arrow::compute::NullHandling::COMPUTED_NO_PREALLOCATE;
+    kernel->null_handling = arrow20::compute::NullHandling::COMPUTED_NO_PREALLOCATE;
+    kernel->data = std::reinterpret_pointer_cast<arrow20::compute::KernelState>(exec);
     return kernel;
 }
 
@@ -75,7 +95,7 @@ IComputationNode* WrapBlockJust(TCallable& callable, const TComputationNodeFacto
     TComputationNodePtrVector argsNodes = {dataCompute};
     TVector<TType*> argsTypes = {dataType};
 
-    std::shared_ptr<arrow::compute::ScalarKernel> kernel;
+    std::shared_ptr<arrow20::compute::ScalarKernel> kernel;
     if (NeedWrapWithExternalOptional(AS_TYPE(TBlockType, callable.GetType()->GetReturnType())->GetItemType())) {
         kernel = MakeBlockJustKernel<false>(argsTypes, callable.GetType()->GetReturnType());
     } else {

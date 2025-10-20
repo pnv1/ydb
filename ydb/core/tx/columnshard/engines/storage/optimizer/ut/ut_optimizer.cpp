@@ -6,7 +6,7 @@
 #include <ydb/library/formats/arrow/simple_builder/batch.h>
 #include <ydb/library/formats/arrow/simple_builder/filler.h>
 #include <ydb/core/formats/arrow/serializer/full.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/type.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/type.h>
 
 Y_UNIT_TEST_SUITE(StorageOptimizer) {
 
@@ -18,8 +18,8 @@ Y_UNIT_TEST_SUITE(StorageOptimizer) {
     public:
 
         static TReplaceKey MakeKey(const i64 value) {
-            NConstruction::IArrayBuilder::TPtr column = std::make_shared<NConstruction::TSimpleArrayConstructor<NConstruction::TIntSeqFiller<arrow::Int64Type>>>(
-                "pk", NConstruction::TIntSeqFiller<arrow::Int64Type>(value));
+            NConstruction::IArrayBuilder::TPtr column = std::make_shared<NConstruction::TSimpleArrayConstructor<NConstruction::TIntSeqFiller<arrow20::Int64Type>>>(
+                "pk", NConstruction::TIntSeqFiller<arrow20::Int64Type>(value));
             return TReplaceKey({column->BuildArray(1)}, 0);
         }
 

@@ -105,7 +105,7 @@ message TEvWriteResult {
 message TEvRead {
     message TPredicate {
         repeated string ColumnNames = 1;
-        optional bytes Row = 2; // One row in arrow::RecordBatch
+        optional bytes Row = 2; // One row in arrow20::RecordBatch
         optional bool Inclusive = 3;
     }
 

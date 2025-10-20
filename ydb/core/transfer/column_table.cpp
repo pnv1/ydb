@@ -25,11 +25,11 @@ public:
             return false;
         }
 
-        std::unordered_map<TString, std::shared_ptr<arrow::RecordBatch>> tableData;
+        std::unordered_map<TString, std::shared_ptr<arrow20::RecordBatch>> tableData;
 
         for (auto& [tablePath, batcher] : Batchers)  {
             NKqp::IDataBatchPtr batch = batcher->Build();
-            tableData[tablePath] = reinterpret_pointer_cast<arrow::RecordBatch>(batch->ExtractBatch());
+            tableData[tablePath] = reinterpret_pointer_cast<arrow20::RecordBatch>(batch->ExtractBatch());
         }
 
         UploaderActorId = TActivationContext::AsActorContext().RegisterWithSameMailbox(
@@ -50,7 +50,7 @@ std::unique_ptr<ITableKindState> CreateColumnTableState(const TActorId& selfId, 
 }
 
 template<>
-IActor* TTableUploader<arrow::RecordBatch>::CreateUploaderInternal(const TString& tablePath, const std::shared_ptr<arrow::RecordBatch>& data, ui64 cookie) {
+IActor* TTableUploader<arrow20::RecordBatch>::CreateUploaderInternal(const TString& tablePath, const std::shared_ptr<arrow20::RecordBatch>& data, ui64 cookie) {
     return NTxProxy::CreateUploadColumnsInternal(SelfId(), tablePath, Scheme->Types, data, cookie);
 }
 
