@@ -1271,6 +1271,9 @@ private:
 
     void Handle(TEvKqpBuffer::TEvError::TPtr& ev) {
         auto& msg = *ev->Get();
+        if (msg.Stats && Stats) {
+            Stats->AddBufferStats(std::move(*msg.Stats));
+        }
         TBase::HandleAbortExecution(msg.StatusCode, msg.Issues, false);
     }
 
@@ -2856,8 +2859,8 @@ private:
 
     void StartCheckpointCoordinator() {
         const auto context = TasksGraph.GetMeta().UserRequestContext;
-        bool enableCheckpointCoordinator = QueryServiceConfig.HasCheckpointsConfig()
-            && QueryServiceConfig.GetCheckpointsConfig().GetEnabled()
+        bool enableCheckpointCoordinator = QueryServiceConfig.HasStreamingQueries()
+            && QueryServiceConfig.GetStreamingQueries().HasExternalStorage()
             && (Request.SaveQueryPhysicalGraph || Request.QueryPhysicalGraph != nullptr)
             && context && context->CheckpointId;
         if (!enableCheckpointCoordinator) {
@@ -2883,7 +2886,7 @@ private:
             ::NFq::TCoordinatorId(checkpointId, Generation),
             NYql::NDq::MakeCheckpointStorageID(),
             SelfId(),
-            QueryServiceConfig.GetCheckpointsConfig(),
+            {},
             Counters->Counters->GetKqpCounters(),
             graphParams,
             stateLoadMode,
