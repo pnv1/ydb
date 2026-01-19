@@ -559,6 +559,14 @@ namespace NLastGetoptFork {
             }
             L << "}";
             L;
+            L << "__ydb_join_alts() {";
+            {
+                I;
+                L << "local IFS='|'";
+                L << "printf '@(%s)' \"$*\"";
+            }
+            L << "}";
+            L;
             L << "while true; do";
             {
                 I;
@@ -614,22 +622,26 @@ namespace NLastGetoptFork {
                 I;
                 if (opts.ArgPermutation_ == EArgPermutation::REQUIRE_ORDER) {
                     L << "args=0";
-                    auto& line = L << "opts='@(";
-                    TStringBuf sep = "";
-                    for (auto& opt : unorderedOpts) {
-                        if (opt->HasArg_ == EHasArg::NO_ARGUMENT || opt->IsHidden()) {
-                            continue;
-                        }
-                        for (auto& shortName : opt->GetShortNames()) {
-                            line << sep << "-" << B(TStringBuf(&shortName, 1));
-                            sep = "|";
-                        }
-                        for (auto& longName: opt->GetLongNames()) {
-                            line << sep << "--" << B(longName);
-                            sep = "|";
+                    L << "opts=$(__ydb_join_alts \\";
+                    {
+                        I;
+                        for (auto& opt : unorderedOpts) {
+                            if (opt->HasArg_ == EHasArg::NO_ARGUMENT || opt->IsHidden()) {
+                                continue;
+                            }
+                            for (auto& shortName : opt->GetShortNames()) {
+                                TStringBuilder flag;
+                                flag << "-" << TStringBuf(&shortName, 1);
+                                L << BB(flag) << " \\";
+                            }
+                            for (auto& longName: opt->GetLongNames()) {
+                                TStringBuilder flag;
+                                flag << "--" << longName;
+                                L << BB(flag) << " \\";
+                            }
                         }
                     }
-                    line << ")'";
+                    L << ")";
                     L << "for (( i=" << level << "; i < cword; i++ )); do";
                     {
                         I;
@@ -824,33 +836,35 @@ namespace NLastGetoptFork {
                                     }
                                     L << "fi";
                                 }
-                                auto& line = L << "opts='@(";
-                                TStringBuf sep = "";
-                                for (auto& opt : unorderedOpts) {
-                                    if (opt->IsHidden()) {
-                                        continue;
+                                L << "opts=$(__ydb_join_alts \\";
+                                {
+                                    I;
+                                    for (auto& opt : unorderedOpts) {
+                                        if (opt->IsHidden()) {
+                                            continue;
+                                        }
+                                        for (auto& shortName : opt->GetShortNames()) {
+                                            TStringBuilder flag;
+                                            flag << "-" << TStringBuf(&shortName, 1);
+                                            L << BB(flag) << " \\";
+                                        }
+                                        for (auto& longName: opt->GetLongNames()) {
+                                            TStringBuilder flag;
+                                            flag << "--" << longName;
+                                            L << BB(flag) << " \\";
+                                        }
                                     }
-                                    for (auto& shortName : opt->GetShortNames()) {
-                                        line << sep << "-" << B(TStringBuf(&shortName, 1));
-                                        sep = "|";
-                                    }
-                                    for (auto& longName: opt->GetLongNames()) {
-                                        line << sep << "--" << B(longName);
-                                        sep = "|";
+                                    for (auto &mode : modes) {
+                                        if (mode->Name.empty() || mode->Hidden || mode->NoCompletion) {
+                                            continue;
+                                        }
+                                        L << BB(mode->Name) << " \\";
+                                        for (auto& alias : mode->Aliases) {
+                                            L << BB(alias) << " \\";
+                                        }
                                     }
                                 }
-                                for (auto &mode : modes) {
-                                    if (mode->Name.empty() || mode->Hidden || mode->NoCompletion) {
-                                        continue;
-                                    }
-
-                                    line << sep << BB(mode->Name);
-                                    sep = "|";
-                                    for (auto& alias : mode->Aliases) {
-                                        line << sep << BB(alias);
-                                    }
-                                }
-                                line << ")'";
+                                L << ")";
                                 L << "if [[ ${words[" << level + 1 << "]} == -* || ${words[" << level + 1 << "]} == $opts ]]; then";
                                 {
                                     I;
@@ -909,22 +923,26 @@ namespace NLastGetoptFork {
                     I;
 
                     L << "args=0";
-                    auto& line = L << "opts='@(";
-                    TStringBuf sep = "";
-                    for (auto& opt : unorderedOpts) {
-                        if (opt->HasArg_ == EHasArg::NO_ARGUMENT || opt->IsHidden()) {
-                            continue;
-                        }
-                        for (auto& shortName : opt->GetShortNames()) {
-                            line << sep << "-" << B(TStringBuf(&shortName, 1));
-                            sep = "|";
-                        }
-                        for (auto& longName: opt->GetLongNames()) {
-                            line << sep << "--" << B(longName);
-                            sep = "|";
+                    L << "opts=$(__ydb_join_alts \\";
+                    {
+                        I;
+                        for (auto& opt : unorderedOpts) {
+                            if (opt->HasArg_ == EHasArg::NO_ARGUMENT || opt->IsHidden()) {
+                                continue;
+                            }
+                            for (auto& shortName : opt->GetShortNames()) {
+                                TStringBuilder flag;
+                                flag << "-" << TStringBuf(&shortName, 1);
+                                L << BB(flag) << " \\";
+                            }
+                            for (auto& longName: opt->GetLongNames()) {
+                                TStringBuilder flag;
+                                flag << "--" << longName;
+                                L << BB(flag) << " \\";
+                            }
                         }
                     }
-                    line << ")'";
+                    L << ")";
                     L << "for (( i=" << level << "; i < cword; i++ )); do";
                     {
                         I;
@@ -1134,22 +1152,26 @@ namespace NLastGetoptFork {
             I;
             if (opts.ArgPermutation_ == EArgPermutation::REQUIRE_ORDER) {
                 L << "args=0";
-                auto& line = L << "opts='@(";
-                TStringBuf sep = "";
-                for (auto& opt : unorderedOpts) {
-                    if (opt->HasArg_ == EHasArg::NO_ARGUMENT || opt->IsHidden()) {
-                        continue;
-                    }
-                    for (auto& shortName : opt->GetShortNames()) {
-                        line << sep << "-" << B(TStringBuf(&shortName, 1));
-                        sep = "|";
-                    }
-                    for (auto& longName: opt->GetLongNames()) {
-                        line << sep << "--" << B(longName);
-                        sep = "|";
+                L << "opts=$(__ydb_join_alts \\";
+                {
+                    I;
+                    for (auto& opt : unorderedOpts) {
+                        if (opt->HasArg_ == EHasArg::NO_ARGUMENT || opt->IsHidden()) {
+                            continue;
+                        }
+                        for (auto& shortName : opt->GetShortNames()) {
+                            TStringBuilder flag;
+                            flag << "-" << TStringBuf(&shortName, 1);
+                            L << BB(flag) << " \\";
+                        }
+                        for (auto& longName: opt->GetLongNames()) {
+                            TStringBuilder flag;
+                            flag << "--" << longName;
+                            L << BB(flag) << " \\";
+                        }
                     }
                 }
-                line << ")'";
+                L << ")";
                 L << "for (( i=" << level << "; i < cword; i++ )); do";
                 {
                     I;
@@ -1295,22 +1317,26 @@ namespace NLastGetoptFork {
                     I;
 
                     L << "args=0";
-                    auto& line = L << "opts='@(";
-                    TStringBuf sep = "";
-                    for (auto& opt : unorderedOpts) {
-                        if (opt->HasArg_ == EHasArg::NO_ARGUMENT || opt->IsHidden()) {
-                            continue;
-                        }
-                        for (auto& shortName : opt->GetShortNames()) {
-                            line << sep << "-" << B(TStringBuf(&shortName, 1));
-                            sep = "|";
-                        }
-                        for (auto& longName: opt->GetLongNames()) {
-                            line << sep << "--" << B(longName);
-                            sep = "|";
+                    L << "opts=$(__ydb_join_alts \\";
+                    {
+                        I;
+                        for (auto& opt : unorderedOpts) {
+                            if (opt->HasArg_ == EHasArg::NO_ARGUMENT || opt->IsHidden()) {
+                                continue;
+                            }
+                            for (auto& shortName : opt->GetShortNames()) {
+                                TStringBuilder flag;
+                                flag << "-" << TStringBuf(&shortName, 1);
+                                L << BB(flag) << " \\";
+                            }
+                            for (auto& longName: opt->GetLongNames()) {
+                                TStringBuilder flag;
+                                flag << "--" << longName;
+                                L << BB(flag) << " \\";
+                            }
                         }
                     }
-                    line << ")'";
+                    L << ")";
                     L << "for (( i=" << level << "; i < cword; i++ )); do";
                     {
                         I;
