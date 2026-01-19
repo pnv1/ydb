@@ -881,7 +881,48 @@ namespace NLastGetoptFork {
                             {
                                 I;
                                 auto& spec = argSpecs[i];
-                                if (spec.Completer_ != nullptr) {
+                                TStringBuilder condition;
+                                for (auto& opt : unorderedOpts) {
+                                    bool disable = opt->DisableCompletionForFreeArgs_;
+                                    if (!disable) {
+                                        for (auto disabledIndex : opt->DisableCompletionForFreeArg_) {
+                                            if (disabledIndex == i) {
+                                                disable = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (!disable) {
+                                        continue;
+                                    }
+                                    for (auto& shortName : opt->GetShortNames()) {
+                                        if (!condition.empty()) {
+                                            condition << " || ";
+                                        }
+                                        condition << "__ydb_has_option " << BB(TStringBuilder() << "-" << TStringBuf(&shortName, 1));
+                                    }
+                                    for (auto& longName : opt->GetLongNames()) {
+                                        if (!condition.empty()) {
+                                            condition << " || ";
+                                        }
+                                        condition << "__ydb_has_option " << BB(TStringBuilder() << "--" << longName);
+                                    }
+                                }
+                                if (!condition.empty()) {
+                                    L << "if " << condition << "; then";
+                                    {
+                                        I;
+                                        L << ": # completion disabled for this free arg";
+                                    }
+                                    L << "else";
+                                    {
+                                        I;
+                                        if (spec.Completer_ != nullptr) {
+                                            spec.Completer_->GenerateBash(out);
+                                        }
+                                    }
+                                    L << "fi";
+                                } else if (spec.Completer_ != nullptr) {
                                     spec.Completer_->GenerateBash(out);
                                 }
                                 L << ";;";
@@ -892,7 +933,39 @@ namespace NLastGetoptFork {
                             {
                                 I;
                                 auto& spec = opts.GetTrailingArgSpec();
-                                if (spec.Completer_ != nullptr) {
+                                TStringBuilder condition;
+                                for (auto& opt : unorderedOpts) {
+                                    if (!opt->DisableCompletionForFreeArgs_) {
+                                        continue;
+                                    }
+                                    for (auto& shortName : opt->GetShortNames()) {
+                                        if (!condition.empty()) {
+                                            condition << " || ";
+                                        }
+                                        condition << "__ydb_has_option " << BB(TStringBuilder() << "-" << TStringBuf(&shortName, 1));
+                                    }
+                                    for (auto& longName : opt->GetLongNames()) {
+                                        if (!condition.empty()) {
+                                            condition << " || ";
+                                        }
+                                        condition << "__ydb_has_option " << BB(TStringBuilder() << "--" << longName);
+                                    }
+                                }
+                                if (!condition.empty()) {
+                                    L << "if " << condition << "; then";
+                                    {
+                                        I;
+                                        L << ": # completion disabled for this free arg";
+                                    }
+                                    L << "else";
+                                    {
+                                        I;
+                                        if (spec.Completer_ != nullptr) {
+                                            spec.Completer_->GenerateBash(out);
+                                        }
+                                    }
+                                    L << "fi";
+                                } else if (spec.Completer_ != nullptr) {
                                     spec.Completer_->GenerateBash(out);
                                 }
                                 L << ";;";
@@ -1122,7 +1195,48 @@ namespace NLastGetoptFork {
                             {
                                 I;
                                 auto& spec = argSpecs[i];
-                                if (spec.Completer_ != nullptr) {
+                                TStringBuilder condition;
+                                for (auto& opt : unorderedOpts) {
+                                    bool disable = opt->DisableCompletionForFreeArgs_;
+                                    if (!disable) {
+                                        for (auto disabledIndex : opt->DisableCompletionForFreeArg_) {
+                                            if (disabledIndex == i) {
+                                                disable = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (!disable) {
+                                        continue;
+                                    }
+                                    for (auto& shortName : opt->GetShortNames()) {
+                                        if (!condition.empty()) {
+                                            condition << " || ";
+                                        }
+                                        condition << "__ydb_has_option " << BB(TStringBuilder() << "-" << TStringBuf(&shortName, 1));
+                                    }
+                                    for (auto& longName : opt->GetLongNames()) {
+                                        if (!condition.empty()) {
+                                            condition << " || ";
+                                        }
+                                        condition << "__ydb_has_option " << BB(TStringBuilder() << "--" << longName);
+                                    }
+                                }
+                                if (!condition.empty()) {
+                                    L << "if " << condition << "; then";
+                                    {
+                                        I;
+                                        L << ": # completion disabled for this free arg";
+                                    }
+                                    L << "else";
+                                    {
+                                        I;
+                                        if (spec.Completer_ != nullptr) {
+                                            spec.Completer_->GenerateBash(out);
+                                        }
+                                    }
+                                    L << "fi";
+                                } else if (spec.Completer_ != nullptr) {
                                     spec.Completer_->GenerateBash(out);
                                 }
                                 L << ";;";
@@ -1133,7 +1247,39 @@ namespace NLastGetoptFork {
                             {
                                 I;
                                 auto& spec = opts.GetTrailingArgSpec();
-                                if (spec.Completer_ != nullptr) {
+                                TStringBuilder condition;
+                                for (auto& opt : unorderedOpts) {
+                                    if (!opt->DisableCompletionForFreeArgs_) {
+                                        continue;
+                                    }
+                                    for (auto& shortName : opt->GetShortNames()) {
+                                        if (!condition.empty()) {
+                                            condition << " || ";
+                                        }
+                                        condition << "__ydb_has_option " << BB(TStringBuilder() << "-" << TStringBuf(&shortName, 1));
+                                    }
+                                    for (auto& longName : opt->GetLongNames()) {
+                                        if (!condition.empty()) {
+                                            condition << " || ";
+                                        }
+                                        condition << "__ydb_has_option " << BB(TStringBuilder() << "--" << longName);
+                                    }
+                                }
+                                if (!condition.empty()) {
+                                    L << "if " << condition << "; then";
+                                    {
+                                        I;
+                                        L << ": # completion disabled for this free arg";
+                                    }
+                                    L << "else";
+                                    {
+                                        I;
+                                        if (spec.Completer_ != nullptr) {
+                                            spec.Completer_->GenerateBash(out);
+                                        }
+                                    }
+                                    L << "fi";
+                                } else if (spec.Completer_ != nullptr) {
                                     spec.Completer_->GenerateBash(out);
                                 }
                                 L << ";;";
