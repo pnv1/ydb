@@ -612,6 +612,37 @@ namespace NLastGetoptFork {
             L << "if [[ ${cur} == -* ]] ;  then";
             {
                 I;
+                if (opts.ArgPermutation_ == EArgPermutation::REQUIRE_ORDER) {
+                    L << "args=0";
+                    auto& line = L << "opts='@(";
+                    TStringBuf sep = "";
+                    for (auto& opt : unorderedOpts) {
+                        if (opt->HasArg_ == EHasArg::NO_ARGUMENT || opt->IsHidden()) {
+                            continue;
+                        }
+                        for (auto& shortName : opt->GetShortNames()) {
+                            line << sep << "-" << B(TStringBuf(&shortName, 1));
+                            sep = "|";
+                        }
+                        for (auto& longName: opt->GetLongNames()) {
+                            line << sep << "--" << B(longName);
+                            sep = "|";
+                        }
+                    }
+                    line << ")'";
+                    L << "for (( i=" << level << "; i < cword; i++ )); do";
+                    {
+                        I;
+                        L << "if [[ ${words[i]} != -* && ${words[i-1]} != $opts ]]; then";
+                        {
+                            I;
+                            L << "(( args++ ))";
+                        }
+                        L << "fi";
+                    }
+                    L << "done";
+                    L << "if [[ $args -eq 0 ]]; then";
+                }
                 L << "candidates=()";
                 for (auto& opt : unorderedOpts) {
                     if (opt->IsHidden()) {
@@ -666,6 +697,9 @@ namespace NLastGetoptFork {
                     }
                 }
                 L << "COMPREPLY+=( $(compgen -W \"${candidates[*]}\" -- ${cur}) )";
+                if (opts.ArgPermutation_ == EArgPermutation::REQUIRE_ORDER) {
+                    L << "fi";
+                }
             }
             L << "else";
             {
@@ -730,8 +764,7 @@ namespace NLastGetoptFork {
                                 L << "words=(\"${words[@]:0:" << level << "}\" \"${words[@]:" << level + 2 << "}\")";
                                 L << "continue";                                
                             } else if (opt->HasArg_ == EHasArg::OPTIONAL_ARGUMENT) {
-                                // check if option has argument set -- so that we know how many words to skip
-                                L << "args=0";
+                                // optional argument is only consumed if it is the immediate next word
                                 auto& line = L << "opts='@(";
                                 TStringBuf sep = "";
                                 for (auto& opt : unorderedOpts) {
@@ -759,25 +792,7 @@ namespace NLastGetoptFork {
                                     }
                                 }
                                 line << ")'";
-                                L << "for (( i=" << level + 1 << "; i < cword; i++ )); do";
-                                {
-                                    I;
-                                    L << "if [[ ${words[i]} == $opts ]]; then";
-                                    {
-                                        I;
-                                        L << "break";                                        
-                                    }
-                                    L << "else";
-                                    {
-                                        I;
-                                        L << "(( args++ ))";
-                                    }
-                                    L << "fi";
-                                }
-                                L << "done";
-                                L;
-
-                                L << "if [[ $args == 0 ]] ; then ";
+                                L << "if [[ ${words[" << level + 1 << "]} == -* || ${words[" << level + 1 << "]} == $opts ]]; then";
                                 {
                                     I;
                                     // pop option from words
@@ -1058,6 +1073,37 @@ namespace NLastGetoptFork {
         L << "if [[ ${cur} == -* ]] ;  then";
         {
             I;
+            if (opts.ArgPermutation_ == EArgPermutation::REQUIRE_ORDER) {
+                L << "args=0";
+                auto& line = L << "opts='@(";
+                TStringBuf sep = "";
+                for (auto& opt : unorderedOpts) {
+                    if (opt->HasArg_ == EHasArg::NO_ARGUMENT || opt->IsHidden()) {
+                        continue;
+                    }
+                    for (auto& shortName : opt->GetShortNames()) {
+                        line << sep << "-" << B(TStringBuf(&shortName, 1));
+                        sep = "|";
+                    }
+                    for (auto& longName: opt->GetLongNames()) {
+                        line << sep << "--" << B(longName);
+                        sep = "|";
+                    }
+                }
+                line << ")'";
+                L << "for (( i=" << level << "; i < cword; i++ )); do";
+                {
+                    I;
+                    L << "if [[ ${words[i]} != -* && ${words[i-1]} != $opts ]]; then";
+                    {
+                        I;
+                        L << "(( args++ ))";
+                    }
+                    L << "fi";
+                }
+                L << "done";
+                L << "if [[ $args -eq 0 ]]; then";
+            }
             L << "candidates=()";
             for (auto& opt : unorderedOpts) {
                 if (opt->IsHidden()) {
@@ -1112,6 +1158,9 @@ namespace NLastGetoptFork {
                 }
             }
             L << "COMPREPLY+=( $(compgen -W \"${candidates[*]}\" -- ${cur}) )";
+            if (opts.ArgPermutation_ == EArgPermutation::REQUIRE_ORDER) {
+                L << "fi";
+            }
         }
         L << "else";
         {
