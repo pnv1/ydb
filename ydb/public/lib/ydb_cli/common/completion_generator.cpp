@@ -518,7 +518,47 @@ namespace NLastGetoptFork {
             L;
             L << "local need_space=\"1\"";
             L << "local IFS=$' \\t\\n'";
-            L;    
+            L;
+            L << "__ydb_has_option() {";
+            {
+                I;
+                L << "local opt=\"$1\"";
+                L << "local w";
+                L << "for w in \"${words[@]}\"; do";
+                {
+                    I;
+                    L << "if [[ \"$w\" == \"$opt\" ]]; then";
+                    {
+                        I;
+                        L << "return 0";
+                    }
+                    L << "fi";
+                }
+                L << "done";
+                L << "return 1";
+            }
+            L << "}";
+            L;
+            L << "__ydb_any_other_option_set() {";
+            {
+                I;
+                L << "local opt=\"$1\"";
+                L << "local w";
+                L << "for w in \"${words[@]}\"; do";
+                {
+                    I;
+                    L << "if [[ \"$w\" == -* && \"$w\" != \"$opt\" ]]; then";
+                    {
+                        I;
+                        L << "return 0";
+                    }
+                    L << "fi";
+                }
+                L << "done";
+                L << "return 1";
+            }
+            L << "}";
+            L;
             L << "while true; do";
             {
                 I;
@@ -572,23 +612,60 @@ namespace NLastGetoptFork {
             L << "if [[ ${cur} == -* ]] ;  then";
             {
                 I;
-                auto& line = L << "COMPREPLY+=( $(compgen -W '";
-                TStringBuf sep = "";
+                L << "candidates=()";
                 for (auto& opt : unorderedOpts) {
                     if (opt->IsHidden()) {
                         continue;
                     }
 
                     for (auto& shortName : opt->GetShortNames()) {
-                        line << sep << "-" << B(TStringBuf(&shortName, 1));
-                        sep = " ";
+                        auto flag = TStringBuilder() << "-" << TStringBuf(&shortName, 1);
+                        TStringBuilder condition;
+                        if (!opt->AllowMultipleCompletion_) {
+                            condition << "! __ydb_has_option " << BB(flag);
+                        }
+                        if (opt->DisableCompletionForOptions_) {
+                            if (!condition.empty()) {
+                                condition << " && ";
+                            }
+                            condition << "! __ydb_any_other_option_set " << BB(flag);
+                        }
+                        if (condition.empty()) {
+                            L << "candidates+=(" << BB(flag) << ")";
+                        } else {
+                            L << "if " << condition << "; then";
+                            {
+                                I;
+                                L << "candidates+=(" << BB(flag) << ")";
+                            }
+                            L << "fi";
+                        }
                     }
                     for (auto& longName: opt->GetLongNames()) {
-                        line << sep << "--" << B(longName);
-                        sep = " ";
+                        auto flag = TStringBuilder() << "--" << longName;
+                        TStringBuilder condition;
+                        if (!opt->AllowMultipleCompletion_) {
+                            condition << "! __ydb_has_option " << BB(flag);
+                        }
+                        if (opt->DisableCompletionForOptions_) {
+                            if (!condition.empty()) {
+                                condition << " && ";
+                            }
+                            condition << "! __ydb_any_other_option_set " << BB(flag);
+                        }
+                        if (condition.empty()) {
+                            L << "candidates+=(" << BB(flag) << ")";
+                        } else {
+                            L << "if " << condition << "; then";
+                            {
+                                I;
+                                L << "candidates+=(" << BB(flag) << ")";
+                            }
+                            L << "fi";
+                        }
                     }
                 }
-                line << "' -- ${cur}) )";
+                L << "COMPREPLY+=( $(compgen -W \"${candidates[*]}\" -- ${cur}) )";
             }
             L << "else";
             {
@@ -908,23 +985,60 @@ namespace NLastGetoptFork {
         L << "if [[ ${cur} == -* ]] ;  then";
         {
             I;
-            auto& line = L << "COMPREPLY+=( $(compgen -W '";
-            TStringBuf sep = "";
+            L << "candidates=()";
             for (auto& opt : unorderedOpts) {
                 if (opt->IsHidden()) {
                     continue;
                 }
 
                 for (auto& shortName : opt->GetShortNames()) {
-                    line << sep << "-" << B(TStringBuf(&shortName, 1));
-                    sep = " ";
+                    auto flag = TStringBuilder() << "-" << TStringBuf(&shortName, 1);
+                    TStringBuilder condition;
+                    if (!opt->AllowMultipleCompletion_) {
+                        condition << "! __ydb_has_option " << BB(flag);
+                    }
+                    if (opt->DisableCompletionForOptions_) {
+                        if (!condition.empty()) {
+                            condition << " && ";
+                        }
+                        condition << "! __ydb_any_other_option_set " << BB(flag);
+                    }
+                    if (condition.empty()) {
+                        L << "candidates+=(" << BB(flag) << ")";
+                    } else {
+                        L << "if " << condition << "; then";
+                        {
+                            I;
+                            L << "candidates+=(" << BB(flag) << ")";
+                        }
+                        L << "fi";
+                    }
                 }
                 for (auto& longName: opt->GetLongNames()) {
-                    line << sep << "--" << B(longName);
-                    sep = " ";
+                    auto flag = TStringBuilder() << "--" << longName;
+                    TStringBuilder condition;
+                    if (!opt->AllowMultipleCompletion_) {
+                        condition << "! __ydb_has_option " << BB(flag);
+                    }
+                    if (opt->DisableCompletionForOptions_) {
+                        if (!condition.empty()) {
+                            condition << " && ";
+                        }
+                        condition << "! __ydb_any_other_option_set " << BB(flag);
+                    }
+                    if (condition.empty()) {
+                        L << "candidates+=(" << BB(flag) << ")";
+                    } else {
+                        L << "if " << condition << "; then";
+                        {
+                            I;
+                            L << "candidates+=(" << BB(flag) << ")";
+                        }
+                        L << "fi";
+                    }
                 }
             }
-            line << "' -- ${cur}) )";
+            L << "COMPREPLY+=( $(compgen -W \"${candidates[*]}\" -- ${cur}) )";
         }
         L << "else";
         {
