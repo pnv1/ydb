@@ -759,12 +759,71 @@ namespace NLastGetoptFork {
                                 L << "words=(\"${words[@]:0:" << level << "}\" \"${words[@]:" << level + 1 << "}\")";
                                 L << "continue";
                             } else if (opt->HasArg_ == EHasArg::REQUIRED_ARGUMENT) {
-                                // pop option and its argument from words
-                                L << "cword=$((cword-2))";
-                                L << "words=(\"${words[@]:0:" << level << "}\" \"${words[@]:" << level + 2 << "}\")";
-                                L << "continue";                                
+                                TStringBuilder attachedCondition;
+                                for (auto& shortName : opt->GetShortNames()) {
+                                    if (!attachedCondition.empty()) {
+                                        attachedCondition << " || ";
+                                    }
+                                    attachedCondition << "[[ ${words[" << level << "]} == -" << B(TStringBuf(&shortName, 1))
+                                                     << "* && ${words[" << level << "]} != -" << B(TStringBuf(&shortName, 1)) << " ]]";
+                                }
+                                for (auto& longName: opt->GetLongNames()) {
+                                    if (!attachedCondition.empty()) {
+                                        attachedCondition << " || ";
+                                    }
+                                    attachedCondition << "[[ ${words[" << level << "]} == --" << B(longName) << "=* ]]";
+                                }
+                                if (!attachedCondition.empty()) {
+                                    L << "if " << attachedCondition << "; then";
+                                    {
+                                        I;
+                                        // pop option with attached argument from words
+                                        L << "cword=$((cword-1))";
+                                        L << "words=(\"${words[@]:0:" << level << "}\" \"${words[@]:" << level + 1 << "}\")";
+                                        L << "continue";
+                                    }
+                                    L << "else";
+                                    {
+                                        I;
+                                        // pop option and its argument from words
+                                        L << "cword=$((cword-2))";
+                                        L << "words=(\"${words[@]:0:" << level << "}\" \"${words[@]:" << level + 2 << "}\")";
+                                        L << "continue";
+                                    }
+                                    L << "fi";
+                                } else {
+                                    // pop option and its argument from words
+                                    L << "cword=$((cword-2))";
+                                    L << "words=(\"${words[@]:0:" << level << "}\" \"${words[@]:" << level + 2 << "}\")";
+                                    L << "continue";
+                                }
                             } else if (opt->HasArg_ == EHasArg::OPTIONAL_ARGUMENT) {
-                                // optional argument is only consumed if it is the immediate next word
+                                // optional argument is consumed only if it is attached or the immediate next word
+                                TStringBuilder attachedCondition;
+                                for (auto& shortName : opt->GetShortNames()) {
+                                    if (!attachedCondition.empty()) {
+                                        attachedCondition << " || ";
+                                    }
+                                    attachedCondition << "[[ ${words[" << level << "]} == -" << B(TStringBuf(&shortName, 1))
+                                                     << "* && ${words[" << level << "]} != -" << B(TStringBuf(&shortName, 1)) << " ]]";
+                                }
+                                for (auto& longName: opt->GetLongNames()) {
+                                    if (!attachedCondition.empty()) {
+                                        attachedCondition << " || ";
+                                    }
+                                    attachedCondition << "[[ ${words[" << level << "]} == --" << B(longName) << "=* ]]";
+                                }
+                                if (!attachedCondition.empty()) {
+                                    L << "if " << attachedCondition << "; then";
+                                    {
+                                        I;
+                                        // pop option with attached argument from words
+                                        L << "cword=$((cword-1))";
+                                        L << "words=(\"${words[@]:0:" << level << "}\" \"${words[@]:" << level + 1 << "}\")";
+                                        L << "continue";
+                                    }
+                                    L << "fi";
+                                }
                                 auto& line = L << "opts='@(";
                                 TStringBuf sep = "";
                                 for (auto& opt : unorderedOpts) {
@@ -1165,6 +1224,44 @@ namespace NLastGetoptFork {
         L << "else";
         {
             I;
+            bool hasArgOption = false;
+            for (auto& opt : unorderedOpts) {
+                if (opt->HasArg_ != EHasArg::NO_ARGUMENT && !opt->IsHidden()) {
+                    hasArgOption = true;
+                    break;
+                }
+            }
+            if (hasArgOption) {
+                L << "if false; then";
+                for (auto& opt : unorderedOpts) {
+                    if (opt->HasArg_ == EHasArg::NO_ARGUMENT || opt->IsHidden()) {
+                        continue;
+                    }
+                    for (auto& shortName : opt->GetShortNames()) {
+                        L << "elif [[ ${cur} == -" << B(TStringBuf(&shortName, 1)) << "* && ${cur} != -" << B(TStringBuf(&shortName, 1)) << " ]]; then";
+                        {
+                            I;
+                            if (opt->Completer_ != nullptr) {
+                                opt->Completer_->GenerateBash(out);
+                            } else {
+                                L << ": # no-op: no completer for option";
+                            }
+                        }
+                    }
+                    for (auto& longName : opt->GetLongNames()) {
+                        L << "elif [[ ${cur} == --" << B(longName) << "=* ]]; then";
+                        {
+                            I;
+                            if (opt->Completer_ != nullptr) {
+                                opt->Completer_->GenerateBash(out);
+                            } else {
+                                L << ": # no-op: no completer for option";
+                            }
+                        }
+                    }
+                }
+                L << "else";
+            }
             L << "case ${prev} in";
             {
                 I;
@@ -1340,6 +1437,9 @@ namespace NLastGetoptFork {
                 }
             }
             L << "esac";
+            if (hasArgOption) {
+                L << "fi";
+            }
         }
         L << "fi";
     }
