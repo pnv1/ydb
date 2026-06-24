@@ -1,5 +1,6 @@
 
 #include "generate.h"
+#include "mcp/mcp_command.h"
 #include "ydb_service_experimental.h"
 #include "ydb_sql.h"
 
@@ -39,6 +40,7 @@ TCommandExperimental::TCommandExperimental()
     AddCommand(std::make_unique<TCommandJson2Svg>());
     AddCommand(std::make_unique<TCommandSqlExperimental>());
     AddCommand(std::make_unique<TCommandSqlOperation>());
+    AddCommand(std::make_unique<TCommandMcp>());
 }
 
 TCommandStreamQuery::TCommandStreamQuery()

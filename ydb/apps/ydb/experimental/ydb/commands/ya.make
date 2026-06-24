@@ -16,6 +16,7 @@ PEERDIR(
     library/cpp/protobuf/util
     library/cpp/threading/future
     ydb/apps/ydb/commands
+    ydb/apps/ydb/experimental/ydb/commands/mcp
     ydb/public/api/protos
     ydb/public/lib/fq
     ydb/public/lib/json_value

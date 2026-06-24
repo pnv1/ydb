@@ -4,13 +4,7 @@
 #include <ydb/public/lib/ydb_cli/common/log.h>
 #include <ydb/public/lib/ydb_cli/commands/interactive/ai/models/model_anthropic.h>
 #include <ydb/public/lib/ydb_cli/commands/interactive/ai/models/model_openai.h>
-#include <ydb/public/lib/ydb_cli/commands/interactive/ai/tools/exec_query_tool.h>
-#include <ydb/public/lib/ydb_cli/commands/interactive/ai/tools/exec_shell_tool.h>
-#include <ydb/public/lib/ydb_cli/commands/interactive/ai/tools/explain_query_tool.h>
-#include <ydb/public/lib/ydb_cli/commands/interactive/ai/tools/list_directory_tool.h>
-#include <ydb/public/lib/ydb_cli/commands/interactive/ai/tools/describe_tool.h>
-#include <ydb/public/lib/ydb_cli/commands/interactive/ai/tools/docs_search_tool.h>
-#include <ydb/public/lib/ydb_cli/commands/interactive/ai/tools/ydb_help_tool.h>
+#include <ydb/public/lib/ydb_cli/commands/interactive/ai/tools/tool_factory.h>
 #include <ydb/public/lib/ydb_cli/common/ftxui.h>
 #include <ydb/public/lib/ydb_cli/common/markdown.h>
 
@@ -286,15 +280,12 @@ void TModelHandler::SetupTools(const TSettings& settings) {
     Y_VALIDATE(Model, "Model must be initialized before initializing tools");
     Y_VALIDATE(settings.LazyDriver, "TModelHandler requires a non-null LazyDriver in settings");
 
-    for (const auto& [name, tool] : std::vector<std::pair<TString, ITool::TPtr>>{
-        {"list_directory", CreateListDirectoryTool({.Database = settings.Database, .LazyDriver = settings.LazyDriver})},
-        {"exec_query", CreateExecQueryTool({.Prompt = settings.Prompt, .Database = settings.Database, .LazyDriver = settings.LazyDriver})},
-        {"explain_query", CreateExplainQueryTool({.LazyDriver = settings.LazyDriver})},
-        {"describe", CreateDescribeTool({.Database = settings.Database, .LazyDriver = settings.LazyDriver})},
-        {"ydb_help", CreateYdbHelpTool({.UsageInfoGetter = settings.UsageInfoGetter})},
-        {"docs_search", CreateDocsSearchTool()},
-        {"exec_shell", CreateExecShellTool({.Prompt = settings.Prompt})},
-    }) {
+    for (const auto& [name, tool] : CreateBuiltinTools({
+        .Database = settings.Database,
+        .LazyDriver = settings.LazyDriver,
+        .Prompt = settings.Prompt,
+        .UsageInfoGetter = settings.UsageInfoGetter,
+    })) {
         if (!tool) {
             continue;
         }

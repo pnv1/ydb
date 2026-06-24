@@ -8,6 +8,7 @@ SRCS(
     explain_query_tool.cpp
     list_directory_tool.cpp
     tool_base.cpp
+    tool_factory.cpp
     tool_interface.cpp
     ydb_help_tool.cpp
 )
