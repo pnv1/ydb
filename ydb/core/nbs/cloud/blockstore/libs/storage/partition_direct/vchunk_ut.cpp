@@ -89,8 +89,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             DirtyMapStateProto,
             DirectBlockGroup,
             3,   // syncRequestsBatchSize
-            DefaultVChunkSize,
-            Counters);
+            DefaultVChunkSize);
         vchunk->Start();
 
         // Run write request
@@ -177,8 +176,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             DirtyMapStateProto,
             DirectBlockGroup,
             3,   // syncRequestsBatchSize
-            DefaultVChunkSize,
-            Counters);
+            DefaultVChunkSize);
         vchunk->Start();
 
         // No write yet -> no safe barrier.
@@ -255,8 +253,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             DirtyMapStateProto,
             DirectBlockGroup,
             3,   // syncRequestsBatchSize
-            DefaultVChunkSize,
-            Counters);
+            DefaultVChunkSize);
         vchunk->Start();
 
         DrainExecutor(DirectBlockGroup->GetExecutor());
@@ -304,8 +301,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             DirtyMapStateProto,
             DirectBlockGroup,
             3,   // syncRequestsBatchSize
-            DefaultVChunkSize,
-            Counters);
+            DefaultVChunkSize);
         vchunk->Start();
 
         // Call SetHostState(TemporaryOffline)
@@ -325,10 +321,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
 
         // Config should stay the same since new config is not persisted yet.
         UNIT_ASSERT_VALUES_EQUAL(
-            "[0/100] "
-            "PBuffer{Primary;Primary;Primary;HandOff;HandOff} "
-            "DDisk{Primary;Primary;Primary;None;None} "
-            "Enabled{+++++}",
+            "[DBG0/V100]{Primary,Primary,Primary,HandOff,HandOff}",
             AccessConfig(*vchunk).DebugPrint());
 
         // DirtyMap config should stay the same too.
@@ -348,10 +341,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
 
         // Config should be updated.
         UNIT_ASSERT_VALUES_EQUAL(
-            "[0/100] "
-            "PBuffer{Primary;Primary;Primary;HandOff;HandOff} "
-            "DDisk{Primary;Primary;Primary;None;None} "
-            "Enabled{-++++}",
+            "[DBG0/V100]{Rotten,Primary,Primary,HandOff,HandOff}",
             AccessConfig(*vchunk).DebugPrint());
 
         // DirtyMap config should be updated.
@@ -386,10 +376,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
 
         // Config should be updated.
         UNIT_ASSERT_VALUES_EQUAL(
-            "[0/100] "
-            "PBuffer{Primary;Primary;Primary;HandOff;HandOff} "
-            "DDisk{Primary;Primary;Primary;None;None} "
-            "Enabled{+++++}",
+            "[DBG0/V100]{Primary,Primary,Primary,HandOff,HandOff}",
             AccessConfig(*vchunk).DebugPrint());
 
         // DirtyMap config should be updated.
@@ -418,8 +405,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             DirtyMapStateProto,
             DirectBlockGroup,
             3,
-            DefaultVChunkSize,
-            Counters);
+            DefaultVChunkSize);
         vchunk->Start();
 
         UNIT_ASSERT_VALUES_EQUAL(
@@ -454,9 +440,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             DirectBlockGroupHostCount + 1,
             AccessConfig(*vchunk).GetHostCount());
         UNIT_ASSERT_VALUES_EQUAL(
-            "[0/100] "
-            "PBuffer{Primary;Primary;Primary;HandOff;HandOff;HandOff} "
-            "DDisk{Primary;Primary;Primary;None;None;None} Enabled{++++++}",
+            "[DBG0/V100]{Primary,Primary,Primary,HandOff,HandOff,HandOff}",
             AccessConfig(*vchunk).DebugPrint());
         UNIT_ASSERT_VALUES_EQUAL(
             "H0*{Operational,32768};"
@@ -489,8 +473,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             DirtyMapStateProto,
             DirectBlockGroup,
             3,
-            DefaultVChunkSize,
-            Counters);
+            DefaultVChunkSize);
         vchunk->Start();
 
         RunOnExecutor(
@@ -547,8 +530,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             DirtyMapStateProto,
             DirectBlockGroup,
             3,
-            DefaultVChunkSize,
-            Counters);
+            DefaultVChunkSize);
         vchunk->Start();
         DrainExecutor(DirectBlockGroup->GetExecutor());
 
@@ -634,8 +616,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             DirtyMapStateProto,
             DirectBlockGroup,
             3,   // syncRequestsBatchSize
-            DefaultVChunkSize,
-            Counters);
+            DefaultVChunkSize);
         vchunk->Start();
 
         // Call SetHostState(Offline)
@@ -656,10 +637,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
 
         // Config should stay the same since new config is not persisted yet.
         UNIT_ASSERT_VALUES_EQUAL(
-            "[0/100] "
-            "PBuffer{Primary;Primary;Primary;HandOff;HandOff} "
-            "DDisk{Primary;Primary;Primary;None;None} "
-            "Enabled{+++++}",
+            "[DBG0/V100]{Primary,Primary,Primary,HandOff,HandOff}",
             AccessConfig(*vchunk).DebugPrint());
 
         // DirtyMap config should stay the same too.
@@ -679,10 +657,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
 
         // Config should be updated.
         UNIT_ASSERT_VALUES_EQUAL(
-            "[0/100] "
-            "PBuffer{Primary;Primary;Primary;Primary;HandOff} "
-            "DDisk{Primary;Primary;Primary;Primary;None} "
-            "Enabled{-+++[0]+}",
+            "[DBG0/V100]{Rotten,Primary,Primary,Fresh,HandOff}",
             AccessConfig(*vchunk).DebugPrint());
 
         // DirtyMap config should be updated.
@@ -718,10 +693,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
 
         // Config should be updated.
         UNIT_ASSERT_VALUES_EQUAL(
-            "[0/100] "
-            "PBuffer{Primary;Primary;Primary;Primary;HandOff} "
-            "DDisk{Primary;Primary;Primary;Primary;None} "
-            "Enabled{++++[0]+}",
+            "[DBG0/V100]{Primary,Primary,Primary,Fresh,HandOff}",
             AccessConfig(*vchunk).DebugPrint());
 
         // DirtyMap config should be updated.
@@ -742,7 +714,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             SetWriteResult({.Error = MakeError(S_OK)}, true);
         }
 
-        // Waiting for the coping to be completed.
+        // Waiting for the copying to be completed.
         {
             DrainExecutor(DirectBlockGroup->GetExecutor());
             UNIT_ASSERT_VALUES_EQUAL(1, ReplyUpdateRequests());
@@ -751,10 +723,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
 
         // Config should be updated.
         UNIT_ASSERT_VALUES_EQUAL(
-            "[0/100] "
-            "PBuffer{Primary;Primary;Primary;Primary;HandOff} "
-            "DDisk{Primary;Primary;Primary;Primary;None} "
-            "Enabled{+++++}",
+            "[DBG0/V100]{Primary,Primary,Primary,Primary,HandOff}",
             AccessConfig(*vchunk).DebugPrint());
 
         // DirtyMap config should be updated.
@@ -801,8 +770,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             DirtyMapStateProto,
             DirectBlockGroup,
             3,   // syncRequestsBatchSize
-            DefaultVChunkSize,
-            Counters);
+            DefaultVChunkSize);
         vchunk->Start();
 
         // Drain executor: DoStart has subscribed to the restore future; since
@@ -906,8 +874,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             DirtyMapStateProto,
             DirectBlockGroup,
             3,   // syncRequestsBatchSize
-            DefaultVChunkSize,
-            Counters);
+            DefaultVChunkSize);
         vchunk->Start();
 
         // Drain: the restore callback fires synchronously (future was already
@@ -977,8 +944,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             DirtyMapStateProto,
             DirectBlockGroup,
             3,   // syncRequestsBatchSize
-            DefaultVChunkSize,
-            Counters);
+            DefaultVChunkSize);
         vchunk->Start();
         DrainExecutor(DirectBlockGroup->GetExecutor());
 
@@ -1053,8 +1019,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             DirtyMapStateProto,
             DirectBlockGroup,
             3,   // syncRequestsBatchSize
-            DefaultVChunkSize,
-            Counters);
+            DefaultVChunkSize);
         vchunk->Start();
         DrainExecutor(DirectBlockGroup->GetExecutor());
 
@@ -1100,8 +1065,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             DirtyMapStateProto,
             DirectBlockGroup,
             3,   // syncRequestsBatchSize
-            DefaultVChunkSize,
-            Counters);
+            DefaultVChunkSize);
         vchunk->Start();
         DrainExecutor(DirectBlockGroup->GetExecutor());
 
