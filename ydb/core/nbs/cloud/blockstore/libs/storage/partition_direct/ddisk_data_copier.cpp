@@ -24,10 +24,10 @@ namespace {
 constexpr auto MinBackoff = TDuration::MilliSeconds(100);
 constexpr auto MaxBackoff = TDuration::Seconds(10);
 
-TBlockRange64 TrimRange(TBlockRange64 range, size_t maxBlockCount)
+TBlockRange16 TrimRange(TBlockRange16 range, ui16 maxBlockCount)
 {
     if (range.Size() > maxBlockCount) {
-        return TBlockRange64::WithLength(range.Start, maxBlockCount);
+        return TBlockRange16::WithLength(range.Start, maxBlockCount);
     }
     return range;
 }
@@ -39,14 +39,15 @@ TBlockRange64 TrimRange(TBlockRange64 range, size_t maxBlockCount)
 struct TDDiskDataCopier::TCopyRangeRequestState
 {
     ui64 SyncId;
-    TBlockRange64 Range;
+    TBlockRange16 Range;
     TRangeLock Lock;
     TString Data;
     NWilson::TSpan Span;
 
     TCopyRangeRequestState(
         ui64 syncId,
-        TBlockRange64 range,
+        TBlockRange16 range,
+        ui32 blockSize,
         TRangeLock lock,
         NWilson::TSpan span)
         : SyncId(syncId)
@@ -54,7 +55,7 @@ struct TDDiskDataCopier::TCopyRangeRequestState
         , Lock(std::move(lock))
         , Span(std::move(span))
     {
-        Data.resize(CopyRangeSize);
+        Data.resize(Range.Size() * blockSize);
         Lock.Arm();
     }
 
@@ -73,7 +74,7 @@ TDDiskDataCopier::TDDiskDataCopier(
     const TDiskDescription& diskDescription,
     const TVChunkConfig& vChunkConfig,
     IDirectBlockGroupPtr directBlockGroup,
-    TBlocksDirtyMapPtr dirtyMap,
+    IRangeSyncClient* client,
     THostIndex destination)
     : ActorSystem(actorSystem)
     , TraceService(traceService)
@@ -81,7 +82,7 @@ TDDiskDataCopier::TDDiskDataCopier(
     , VolumeConfig(partitionDirectService->GetVolumeConfig())
     , DirectBlockGroup(std::move(directBlockGroup))
     , Destination(destination)
-    , DirtyMap(std::move(dirtyMap))
+    , Client(client)
     , LogTitle{
           GetCycleCount(),
           TLogTitle::TDDiskDataCopier{
@@ -94,6 +95,7 @@ TDDiskDataCopier::TDDiskDataCopier(
     , BackoffDelayProvider(MinBackoff, MaxBackoff)
 {
     Y_ABORT_UNLESS(traceService);
+    Y_ABORT_UNLESS(Client);
     Y_ABORT_UNLESS(Destination < VChunkConfig.GetHostCount());
 }
 
@@ -134,17 +136,24 @@ TFuture<TDDiskDataCopier::EResult> TDDiskDataCopier::Stop()
     }
 }
 
-std::optional<TBlockRange64> TDDiskDataCopier::GetFreshRange() const
+ui64 TDDiskDataCopier::GetBytesCopied() const
 {
-    auto freshRange = DirtyMap->GetFreshRange(Destination);
+    return BytesCopied;
+}
+
+std::optional<TBlockRange16> TDDiskDataCopier::GetFreshRange() const
+{
+    auto freshRange = Client->GetFreshRange(Destination);
     if (!freshRange) {
         return std::nullopt;
     }
 
-    return TrimRange(*freshRange, CopyRangeSize / VolumeConfig->BlockSize);
+    return TrimRange(
+        *freshRange,
+        IntegerCast<ui16>(CopyRangeSize / VolumeConfig->BlockSize));
 }
 
-NWilson::TSpan TDDiskDataCopier::CreateSpan(TBlockRange64 range) const
+NWilson::TSpan TDDiskDataCopier::CreateSpan(TBlockRange16 range) const
 {
     auto span = TraceService->CreateRootSpan("CopyRange");
     span.Attribute("DiskId", VolumeConfig->DiskId);
@@ -187,7 +196,7 @@ void TDDiskDataCopier::StartCopyRange()
 
     auto timeWaitBeforeExecution = DirectBlockGroup->TakeCopyRangeBudget(
         freshRange->Size() * VolumeConfig->BlockSize);
-    auto hint = DirtyMap->BeginRangeSync(Destination, *freshRange);
+    auto hint = Client->BeginRangeSync(Destination, *freshRange);
     hint.ReadyToStart.Subscribe(
         [weakSelf = weak_from_this(),
          syncId = hint.SyncId,
@@ -206,7 +215,7 @@ void TDDiskDataCopier::StartCopyRange()
 void TDDiskDataCopier::CopyRange(
     TDuration timeWaitBeforeExecution,
     ui64 syncId,
-    TBlockRange64 range)
+    TBlockRange16 range)
 {
     if (timeWaitBeforeExecution) {
         LOG_DEBUG(
@@ -241,12 +250,13 @@ void TDDiskDataCopier::CopyRange(
     auto copyRangeState = std::make_shared<TCopyRangeRequestState>(
         syncId,
         range,
-        TRangeLock(DirtyMap, range, THostMask::MakeOne(Destination)),
+        VolumeConfig->BlockSize,
+        Client->MakeDDiskRangeLock(range, THostMask::MakeOne(Destination)),
         CreateSpan(range));
 
-    auto readHint = DirtyMap->MakeReadHint(range);
+    auto readHint = Client->MakeReadHint(range);
     if (readHint.RangeHints.empty()) {
-        DirtyMap->EndRangeSync(copyRangeState->SyncId, false);
+        Client->EndRangeSync(copyRangeState->SyncId, false);
         auto waitReadyFuture = readHint.WaitReady;
         Y_ABORT_UNLESS(!waitReadyFuture.HasValue());
         waitReadyFuture.Subscribe(
@@ -267,7 +277,7 @@ void TDDiskDataCopier::CopyRange(
         std::make_shared<TReadBlocksLocalRequest>(TRequestHeaders{
             .VolumeConfig = VolumeConfig,
             .RequestId = requestId,
-            .Range = range,
+            .Range = TBlockRange64::WithLength(0, range.Size()),
             .Timestamp = TInstant::Now()});
     readRequest->Sglist = copyRangeState->GetSgList();
     auto callContext = MakeIntrusive<TCallContext>(requestId);
@@ -321,7 +331,7 @@ void TDDiskDataCopier::OnRangeRead(
             copyRangeState->Range.Print().c_str(),
             FormatError(response.Error).Quote().c_str());
 
-        DirtyMap->EndRangeSync(copyRangeState->SyncId, false);
+        Client->EndRangeSync(copyRangeState->SyncId, false);
         if (IsNeverRetriableError(response.Error)) {
             Complete.SetValue(EResult::Error);
         } else {
@@ -372,7 +382,7 @@ void TDDiskDataCopier::OnRangeWritten(
             copyRangeState->Range.Print().c_str(),
             FormatError(response.Error).Quote().c_str());
 
-        DirtyMap->EndRangeSync(copyRangeState->SyncId, false);
+        Client->EndRangeSync(copyRangeState->SyncId, false);
         if (IsNeverRetriableError(response.Error)) {
             Complete.SetValue(EResult::Error);
         } else {
@@ -382,7 +392,15 @@ void TDDiskDataCopier::OnRangeWritten(
     }
 
     BackoffDelayProvider.Reset();
-    DirtyMap->EndRangeSync(copyRangeState->SyncId, true);
+    const ui64 rangeBytes =
+        copyRangeState->Range.Size() * VolumeConfig->BlockSize;
+    BytesCopied += rangeBytes;
+    BytesCopiedSinceLastProgress += rangeBytes;
+    Client->EndRangeSync(copyRangeState->SyncId, true);
+    if (BytesCopiedSinceLastProgress >= CopyProgressSaveInterval) {
+        BytesCopiedSinceLastProgress -= CopyProgressSaveInterval;
+        Client->OnCopyProgress(BytesCopied);
+    }
     StartCopyRange();
 }
 

@@ -436,6 +436,22 @@ public:
         }
     }
 
+    bool IsCompact() const {
+        switch (Type) {
+            case EType::GlobalFulltextCompact:
+            case EType::GlobalFulltextCompactRelevance:
+            case EType::GlobalJsonCompact:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    bool IsWrittenBySink(bool enableIndexStreamWrite) const {
+        return IsCompact() || enableIndexStreamWrite &&
+            (Type == EType::GlobalSync || Type == EType::GlobalSyncUnique);
+    }
+
     std::span<const std::string_view> GetImplTables() const {
         switch (Type) {
             case EType::GlobalSync:
@@ -475,6 +491,9 @@ struct TMultiColumnStatisticsDescription {
             switch (type) {
                 case NKikimrSchemeOp::EMultiColumnStatisticsType::COUNT_MIN_SKETCH:
                     Types.push_back("COUNT_MIN_SKETCH");
+                    break;
+                case NKikimrSchemeOp::EMultiColumnStatisticsType::EQ_HEIGHT_HISTOGRAM:
+                    Types.push_back("EQ_HEIGHT_HISTOGRAM");
                     break;
                 default:
                     break;
@@ -1406,6 +1425,7 @@ struct TDropTransferSettings {
 struct TAnalyzeSettings {
     TString TablePath;
     TVector<TString> Columns;
+    double SampleRate = 1.0;
 };
 
 struct TBackupCollectionSettings {

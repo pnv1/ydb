@@ -1,5 +1,6 @@
 #include "fulltext.h"
 #include "fulltext_query.h"
+#include "superlemmer.h"
 
 #include <contrib/libs/snowball/include/libstemmer.h>
 
@@ -492,6 +493,10 @@ namespace {
             return false;
         }
 
+        if (settings.use_filter_snowball() && settings.use_filter_superlemmer()) {
+            error = "cannot set use_filter_snowball and use_filter_superlemmer at the same time";
+            return false;
+        }
         if (settings.use_filter_snowball()) {
             if (settings.use_filter_ngram() || settings.use_filter_edge_ngram()) {
                 error = "cannot set use_filter_snowball with use_filter_ngram or use_filter_edge_ngram at the same time";
@@ -514,8 +519,29 @@ namespace {
                 error = "language is not supported by snowball";
                 return false;
             }
-        } else if (settings.has_language() && !settings.use_filter_stopwords()) {
-            error = "language setting is only supported with use_filter_snowball or use_filter_stopwords";
+        }
+
+        if (settings.use_filter_superlemmer()) {
+            if (settings.use_filter_ngram() || settings.use_filter_edge_ngram()) {
+                error = "cannot set use_filter_superlemmer with use_filter_ngram or use_filter_edge_ngram at the same time";
+                return false;
+            }
+
+            if (!settings.has_language()) {
+                error = "language required when use_filter_superlemmer is set";
+                return false;
+            }
+
+            if (!IsSuperLemmerSupportedLanguage(settings.language())) {
+                error = "language is not supported by superlemmer";
+                return false;
+            }
+        }
+
+        if (settings.has_language() && !settings.use_filter_snowball() && !settings.use_filter_superlemmer()) {
+            // Currently, language is only used for stemming (use_filter_snowball).
+            // In the future, it may be used for other language-sensitive operations (e.g., stopword filtering).
+            error = "language setting is only supported with use_filter_snowball or use_filter_superlemmer at present; other uses may be supported in the future";
             return false;
         }
 
@@ -685,6 +711,12 @@ TVector<TString> Analyze(const TStringBuf text, const Ydb::Table::FulltextIndexS
         }
     }
 
+    if (settings.use_filter_superlemmer()) {
+        for (auto& token : tokens) {
+            ApplySuperLemmerInplace(settings.language(), token);
+        }
+    }
+
     if (settings.use_filter_ngram() || settings.use_filter_edge_ngram()) {
         TVector<TString> ngrams;
         for (const auto& token : tokens) {
@@ -836,6 +868,15 @@ bool ValidateSettings(const Ydb::Table::FulltextIndexSettings& settings, TString
     return true;
 }
 
+bool HasSuperLemmer(const Ydb::Table::FulltextIndexSettings& settings) {
+    for (const auto& column : settings.columns()) {
+        if (column.has_analyzers() && column.analyzers().use_filter_superlemmer()) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool FillSetting(Ydb::Table::FulltextIndexSettings& settings, const TString& nameLower, const TString& value, TString& error) {
     error = "";
 
@@ -869,6 +910,8 @@ bool FillSetting(Ydb::Table::FulltextIndexSettings& settings, const TString& nam
         analyzers->set_filter_length_max(ParseInt32(nameLower, value, error));
     } else if (nameLower == "use_filter_snowball") {
         analyzers->set_use_filter_snowball(ParseBool(nameLower, value, error));
+    } else if (nameLower == "use_filter_superlemmer") {
+        analyzers->set_use_filter_superlemmer(ParseBool(nameLower, value, error));
     } else {
         error = TStringBuilder() << "Unknown index setting: " << nameLower;
         return false;
@@ -904,15 +947,21 @@ void AddVarintWithFlag(TVector<ui8>& buf, ui64 num, bool flag) {
 ui64 ReadVarint(TConstArrayRef<ui8> buf, size_t& pos) {
     ui64 r = 0;
     ui32 o = 0;
+    bool terminated = false;
     while (pos < buf.size()) {
         ui64 c = buf[pos++];
-        r |= ((c & 0x7F) << o);
+        const ui64 payload = c & 0x7F;
+        Y_ENSURE(payload <= (Max<ui64>() >> o), "Fulltext delta contains an overflowing varint");
+        r |= (payload << o);
         if (!(c & 0x80)) {
+            Y_ENSURE(o == 0 || payload != 0, "Fulltext delta contains a non-canonical varint");
+            terminated = true;
             break;
         }
         o += 7;
         Y_ENSURE(o < 64);
     }
+    Y_ENSURE(terminated, "Fulltext delta contains a truncated varint");
     return r;
 }
 
@@ -925,7 +974,9 @@ ui64 ReadVarintWithFlag(TConstArrayRef<ui8> buf, size_t& pos, bool& flag) {
     flag = !!(c & 0x40);
     ui64 r = c & 0x3F;
     if (c & 0x80) {
-        r |= ReadVarint(buf, pos) << 6;
+        const ui64 tail = ReadVarint(buf, pos);
+        Y_ENSURE(tail <= (Max<ui64>() >> 6), "Fulltext delta contains an overflowing flagged varint");
+        r |= tail << 6;
     }
     return r;
 }
@@ -945,16 +996,26 @@ bool TDeltaReader::Read(ui64& docId, ui32& freq) {
     }
     ui64 prevPos = Pos;
     bool hasFreq = false;
-    if (WithFreq) {
-        docId = LastId + ReadVarintWithFlag(Buf, Pos, hasFreq);
-    } else {
-        docId = LastId + ReadVarint(Buf, Pos);
-    }
+    const ui64 delta = WithFreq
+        ? ReadVarintWithFlag(Buf, Pos, hasFreq)
+        : ReadVarint(Buf, Pos);
     if (!prevPos && Sign) {
-        // Decode first item as zigzag
-        docId = (docId >> 1) ^ -(docId & 1);
+        // Decode first item as zigzag. Every ui64 representation maps to one valid i64 value.
+        docId = (delta >> 1) ^ -(delta & 1);
+    } else if (Sign) {
+        // Signed postings are ordered as i64, while their positive delta intentionally uses modular
+        // ui64 arithmetic when crossing -1 -> 0.
+        docId = LastId + delta;
+        Y_ENSURE(static_cast<i64>(docId) > static_cast<i64>(LastId),
+            "Fulltext delta contains an overflowing signed document id");
+    } else {
+        Y_ENSURE(delta <= Max<ui64>() - LastId, "Fulltext delta contains an overflowing document id");
+        docId = LastId + delta;
     }
-    freq = hasFreq ? ReadVarint(Buf, Pos) : 1;
+    const ui64 decodedFreq = hasFreq ? ReadVarint(Buf, Pos) : 1;
+    Y_ENSURE(decodedFreq <= Max<ui32>(), "Fulltext delta contains an overflowing frequency");
+    Y_ENSURE(!hasFreq || decodedFreq > 1, "Fulltext delta contains a non-canonical frequency");
+    freq = static_cast<ui32>(decodedFreq);
     if (Sign ? ((i64)docId > (i64)MaxId) : (docId > MaxId)) {
         Pos = prevPos;
         return false;
@@ -1097,7 +1158,8 @@ void TMultiDeltaReader::Consume(ui32 rdrId, TReaderRef& rdr) {
     ui64 docId = 0;
     ui32 freq = 1;
     if (rdr.Reader->Read(docId, freq)) {
-        Items.push_back(TItem{docId, (rdr.Added ? (i32)freq : -(i32)freq), rdrId});
+        const i64 signedFreq = static_cast<i64>(freq);
+        Items.push_back(TItem{docId, rdr.Added ? signedFreq : -signedFreq, rdrId});
         std::push_heap(Items.begin(), Items.end(), Sign ? CompareSigned : CompareItems);
     }
 }
@@ -1125,7 +1187,8 @@ bool TMultiDeltaReader::Read(ui64& docId, ui32& freq) {
                 // Finished, item has positive frequency (not canceled by updates)
                 // Leave NextItem as is
                 docId = cur.DocId;
-                freq = cur.Freq;
+                Y_ENSURE(cur.Freq <= Max<ui32>(), "Merged fulltext frequency exceeds ui32");
+                freq = static_cast<ui32>(cur.Freq);
                 return true;
             } else {
                 // Scan the next item
@@ -1137,7 +1200,8 @@ bool TMultiDeltaReader::Read(ui64& docId, ui32& freq) {
     if (cur.Freq > 0) {
         // Finished, item has positive frequency (not canceled by updates)
         docId = cur.DocId;
-        freq = cur.Freq;
+        Y_ENSURE(cur.Freq <= Max<ui32>(), "Merged fulltext frequency exceeds ui32");
+        freq = static_cast<ui32>(cur.Freq);
         return true;
     }
     return false;

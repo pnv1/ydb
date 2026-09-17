@@ -8,6 +8,7 @@
 #include "write_request_bundle.h"
 
 #include <ydb/core/nbs/cloud/blockstore/config/config.h>
+#include <ydb/core/nbs/cloud/blockstore/libs/common/memory/public.h>
 #include <ydb/core/nbs/cloud/blockstore/libs/common/thread_checker.h>
 #include <ydb/core/nbs/cloud/blockstore/libs/diagnostics/trace_helpers.h>
 #include <ydb/core/nbs/cloud/blockstore/libs/diagnostics/vchunk_stats.h>
@@ -31,6 +32,7 @@ namespace NYdb::NBS::NBlockStore::NStorage::NPartitionDirect {
 
 class TVChunk
     : public IWriteClient
+    , public IRangeSyncClient
     , public std::enable_shared_from_this<TVChunk>
 {
 public:
@@ -43,6 +45,8 @@ public:
         const TDirtyMapStateProto& dirtyMapState,
         IDirectBlockGroupPtr directBlockGroup,
         ui32 syncRequestsBatchSize,
+        // Volume block size, distinct from the 4 KiB DDisk integrity unit.
+        ui32 blockSize,
         ui64 vChunkSize);
 
     ~TVChunk() override;
@@ -69,9 +73,6 @@ public:
     [[nodiscard]] const TVChunkConfig& GetConfig() const;
     [[nodiscard]] TExecutorPtr GetExecutor() const;
     [[nodiscard]] TCountAndSize GetPBuffersUsage(THostIndex hostIndex) const;
-    [[nodiscard]] TCountAndSize GetAheadBlocks(THostIndex hostIndex) const;
-    [[nodiscard]] TCountAndSize GetBehindBlocks(THostIndex hostIndex) const;
-
     // This vchunk's contribution to the tablet-wide cleanup watermark: the
     // smallest record id still held in PBuffers, or nullopt when nothing is
     // inflight. Until the dirty map is restored it returns the zero record id
@@ -81,6 +82,9 @@ public:
     [[nodiscard]] std::optional<TPBufferKey> GetSafeBarrierForErase() const;
 
     [[nodiscard]] TString DebugPrintDirtyMap();
+    [[nodiscard]] TDirtyMapStats GetDirtyMapStats() const;
+    [[nodiscard]] TDirtyMapHostStats GetDirtyMapHostStats(
+        THostIndex hostIndex) const;
 
     // Snapshot for the mon page. Must run on the executor thread.
     [[nodiscard]] TVChunkSnapshot BuildMonSnapshot();
@@ -95,6 +99,17 @@ public:
     void OnBelatedWriteBlocksResponse(
         std::shared_ptr<TWriteRequestBundle> bundle,
         THostMask completedWrites) override;
+
+    // IRangeSyncClient implementation
+    [[nodiscard]] std::optional<TBlockRange16> GetFreshRange(
+        THostIndex host) const override;
+    [[nodiscard]] TReadHint MakeReadHint(TBlockRange16 range) override;
+    [[nodiscard]] TRangeLock MakeDDiskRangeLock(
+        TBlockRange16 range,
+        THostMask mask) override;
+    TSyncHint BeginRangeSync(THostIndex host, TBlockRange16 range) override;
+    void EndRangeSync(ui64 syncId, bool success) override;
+    void OnCopyProgress(ui64 totalBytes) override;
 
 private:
     friend struct TBaseFixture;
@@ -116,7 +131,7 @@ private:
 
     void DoReadBlocksLocal(
         TTracedPromise<TReadBlocksLocalResponse> promise,
-        TBlockRange64 vchunkRange,
+        TBlockRange16 vchunkRange,
         TCallContextPtr callContext,
         std::shared_ptr<TReadBlocksLocalRequest> request,
         std::shared_ptr<NWilson::TSpan> span);
@@ -171,7 +186,7 @@ private:
     const TThreadChecker ExecutorThreadChecker{Executor};
     const IDirectBlockGroupPtr DirectBlockGroup;
     const ui32 BlockSize;
-    const ui64 BlocksCount;
+    const ui16 BlocksCount;
     const ui32 SyncRequestsBatchSize;
 
     TLogTitle LogTitle;

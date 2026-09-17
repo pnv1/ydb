@@ -2,6 +2,8 @@
 
 #include "pbuffer_key_test_helpers.h"
 
+#include <ydb/core/nbs/cloud/blockstore/libs/storage/partition_direct/dirty_map/testlib/range_locker_access.h>
+
 #include <library/cpp/testing/unittest/registar.h>
 
 #include <utility>
@@ -10,26 +12,7 @@ namespace NYdb::NBS::NBlockStore::NStorage::NPartitionDirect {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRangeLockAccess
-{
-public:
-    static TRangeLock Make(
-        ILockableRangesWeakPtr lockableRanges,
-        TPBufferKey pBufferKey)
-    {
-        return TRangeLock(std::move(lockableRanges), pBufferKey);
-    }
-
-    static TRangeLock Make(
-        ILockableRangesWeakPtr lockableRanges,
-        TBlockRange64 range,
-        THostMask mask)
-    {
-        return TRangeLock(std::move(lockableRanges), range, mask);
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
+namespace {
 
 class TMockLockableRanges
     : public ILockableRanges
@@ -50,7 +33,7 @@ public:
     }
 
     TLockRangeHandle LockDDiskRange(
-        TBlockRange64 range,
+        TBlockRange16 range,
         THostMask mask) override
     {
         Y_UNUSED(range);
@@ -76,6 +59,8 @@ private:
     TLockRangeHandle NextHandle = 1000;
 };
 
+}   // namespace
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Y_UNIT_TEST_SUITE(TRangeLockTest)
@@ -89,7 +74,7 @@ Y_UNIT_TEST_SUITE(TRangeLockTest)
             TRangeLock lock1 = TRangeLockAccess::Make(mock, MakeKey(123));
             TRangeLock lock2 = TRangeLockAccess::Make(
                 mock,
-                TBlockRange64::MakeOneBlock(100),
+                TBlockRange16::MakeOneBlock(100),
                 mask);
             UNIT_ASSERT_VALUES_EQUAL(0, mock->LsnLocks.size());
             UNIT_ASSERT_VALUES_EQUAL(0, mock->RangeLocks.size());
@@ -122,7 +107,7 @@ Y_UNIT_TEST_SUITE(TRangeLockTest)
         {
             TRangeLock lock = TRangeLockAccess::Make(
                 mock,
-                TBlockRange64::MakeOneBlock(100),
+                TBlockRange16::MakeOneBlock(100),
                 mask);
 
             lock.Arm();
@@ -143,7 +128,7 @@ Y_UNIT_TEST_SUITE(TRangeLockTest)
             TRangeLock lock1 = TRangeLockAccess::Make(mock, MakeKey(456));
             TRangeLock lock2 = TRangeLockAccess::Make(
                 mock,
-                TBlockRange64::MakeOneBlock(100),
+                TBlockRange16::MakeOneBlock(100),
                 mask);
             lock1.Arm();
             lock2.Arm();
@@ -170,7 +155,7 @@ Y_UNIT_TEST_SUITE(TRangeLockTest)
             TRangeLock lock1 = TRangeLockAccess::Make(mock, MakeKey(456));
             TRangeLock lock2 = TRangeLockAccess::Make(
                 mock,
-                TBlockRange64::MakeOneBlock(100),
+                TBlockRange16::MakeOneBlock(100),
                 mask);
             lock1.Arm();
             lock2.Arm();
@@ -198,7 +183,7 @@ Y_UNIT_TEST_SUITE(TRangeLockTest)
         TRangeLock lock1 = TRangeLockAccess::Make(mock, MakeKey(456));
         TRangeLock lock2 = TRangeLockAccess::Make(
             mock,
-            TBlockRange64::MakeOneBlock(100),
+            TBlockRange16::MakeOneBlock(100),
             mask);
         lock1.Arm();
         lock2.Arm();

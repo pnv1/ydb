@@ -45,10 +45,10 @@ void MakeDirtyMapNeedPersist(TBlocksDirtyMap& dirtyMap)
 
     dirtyMap.RegisterInflightWrite(
         MakeKey(100),
-        TBlockRange64::WithLength(10, 10));
+        TBlockRange16::WithLength(10, 10));
     dirtyMap.WriteFinished(
         MakeKey(100),
-        TBlockRange64::WithLength(10, 10),
+        TBlockRange16::WithLength(10, 10),
         requested,
         requested);
 
@@ -68,7 +68,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
     {
         Init();
 
-        const TBlockRange64 range = TBlockRange64::WithLength(10, 1);
+        const auto range = TBlockRange16::WithLength(10, 1);
         ExpectedRange = range;
         RangeData = GenerateRandomString(BlockSize * range.Size());
 
@@ -77,7 +77,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             std::make_shared<TWriteBlocksLocalRequest>(TRequestHeaders{
                 .VolumeConfig = PartitionDirectService->GetVolumeConfig(),
                 .RequestId = 1,
-                .Range = range});
+                .Range = ConvertRangeSafe<TBlockRange64>(range)});
         request->Sglist = MakeSgList();
 
         auto vchunk = std::make_shared<TVChunk>(
@@ -89,6 +89,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             DirtyMapStateProto,
             DirectBlockGroup,
             3,   // syncRequestsBatchSize
+            DefaultBlockSize,
             DefaultVChunkSize);
         vchunk->Start();
 
@@ -160,7 +161,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
     {
         Init();
 
-        const TBlockRange64 range = TBlockRange64::WithLength(10, 1);
+        const auto range = TBlockRange16::WithLength(10, 1);
         ExpectedRange = range;
         RangeData = GenerateRandomString(BlockSize * range.Size());
 
@@ -176,6 +177,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             DirtyMapStateProto,
             DirectBlockGroup,
             3,   // syncRequestsBatchSize
+            DefaultBlockSize,
             DefaultVChunkSize);
         vchunk->Start();
 
@@ -189,7 +191,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             std::make_shared<TWriteBlocksLocalRequest>(TRequestHeaders{
                 .VolumeConfig = PartitionDirectService->GetVolumeConfig(),
                 .RequestId = 1,
-                .Range = range});
+                .Range = ConvertRangeSafe<TBlockRange64>(range)});
         request->Sglist = MakeSgList();
 
         auto future =
@@ -253,6 +255,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             DirtyMapStateProto,
             DirectBlockGroup,
             3,   // syncRequestsBatchSize
+            DefaultBlockSize,
             DefaultVChunkSize);
         vchunk->Start();
 
@@ -301,6 +304,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             DirtyMapStateProto,
             DirectBlockGroup,
             3,   // syncRequestsBatchSize
+            DefaultBlockSize,
             DefaultVChunkSize);
         vchunk->Start();
 
@@ -405,6 +409,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             DirtyMapStateProto,
             DirectBlockGroup,
             3,
+            DefaultBlockSize,
             DefaultVChunkSize);
         vchunk->Start();
 
@@ -473,6 +478,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             DirtyMapStateProto,
             DirectBlockGroup,
             3,
+            DefaultBlockSize,
             DefaultVChunkSize);
         vchunk->Start();
 
@@ -530,6 +536,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             DirtyMapStateProto,
             DirectBlockGroup,
             3,
+            DefaultBlockSize,
             DefaultVChunkSize);
         vchunk->Start();
         DrainExecutor(DirectBlockGroup->GetExecutor());
@@ -562,7 +569,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
         DirectBlockGroup->ReadBlocksFromDDiskHandler = [&]   //
             (ui32 vChunkIndex,
              THostIndex hostIndex,
-             TBlockRange64 range,
+             TBlockRange16 range,
              const TGuardedSgList& guardedSglist,
              const NWilson::TTraceId& traceId)
         {
@@ -587,7 +594,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
         DirectBlockGroup->WriteBlocksToDDiskHandler = [&]   //
             (ui32 vChunkIndex,
              THostIndex hostIndex,
-             TBlockRange64 range,
+             TBlockRange16 range,
              const TGuardedSgList& guardedSglist,
              const NWilson::TTraceId& traceId)
         {
@@ -616,6 +623,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             DirtyMapStateProto,
             DirectBlockGroup,
             3,   // syncRequestsBatchSize
+            DefaultBlockSize,
             DefaultVChunkSize);
         vchunk->Start();
 
@@ -717,6 +725,22 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
         // Waiting for the copying to be completed.
         {
             DrainExecutor(DirectBlockGroup->GetExecutor());
+            UNIT_ASSERT_VALUES_EQUAL(
+                1,
+                PartitionDirectService->UpdateConfigRequests.size());
+            UNIT_ASSERT_VALUES_EQUAL(
+                CopyProgressSaveInterval,
+                *PartitionDirectService->UpdateConfigRequests.front()
+                     .Config.GetWatermark(3));
+            UNIT_ASSERT_VALUES_EQUAL(1, ReplyUpdateRequests());
+            DrainExecutor(DirectBlockGroup->GetExecutor());
+
+            UNIT_ASSERT_VALUES_EQUAL(
+                1,
+                PartitionDirectService->UpdateConfigRequests.size());
+            UNIT_ASSERT(!PartitionDirectService->UpdateConfigRequests.front()
+                             .Config.GetWatermark(3)
+                             .has_value());
             UNIT_ASSERT_VALUES_EQUAL(1, ReplyUpdateRequests());
             DrainExecutor(DirectBlockGroup->GetExecutor());
         }
@@ -757,7 +781,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             return neverResolvePromise.GetFuture();
         };
 
-        const TBlockRange64 range = TBlockRange64::WithLength(0, 1);
+        const auto range = TBlockRange16::WithLength(0, 1);
         ExpectedRange = range;
         RangeData = GenerateRandomString(BlockSize * range.Size());
 
@@ -770,6 +794,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             DirtyMapStateProto,
             DirectBlockGroup,
             3,   // syncRequestsBatchSize
+            DefaultBlockSize,
             DefaultVChunkSize);
         vchunk->Start();
 
@@ -784,7 +809,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             std::make_shared<TWriteBlocksLocalRequest>(TRequestHeaders{
                 .VolumeConfig = PartitionDirectService->GetVolumeConfig(),
                 .RequestId = 1,
-                .Range = range});
+                .Range = ConvertRangeSafe<TBlockRange64>(range)});
         writeRequest->Sglist = MakeSgList();
         auto writeFuture = vchunk->WriteBlocksLocal(
             callContext,
@@ -797,7 +822,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             std::make_shared<TReadBlocksLocalRequest>(TRequestHeaders{
                 .VolumeConfig = PartitionDirectService->GetVolumeConfig(),
                 .RequestId = 2,
-                .Range = range});
+                .Range = ConvertRangeSafe<TBlockRange64>(range)});
         readRequest->Sglist = TGuardedSgList(
             TSgList{TBlockDataRef{readBuffer.data(), readBuffer.size()}});
         auto readFuture = vchunk->ReadBlocksLocal(
@@ -861,7 +886,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
         // Default handler returns an immediately-resolved future, so
         // DirtyMapReady becomes true inside DoStart.
 
-        const TBlockRange64 range = TBlockRange64::WithLength(0, 1);
+        const auto range = TBlockRange16::WithLength(0, 1);
         ExpectedRange = range;
         RangeData = GenerateRandomString(BlockSize * range.Size());
 
@@ -874,6 +899,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             DirtyMapStateProto,
             DirectBlockGroup,
             3,   // syncRequestsBatchSize
+            DefaultBlockSize,
             DefaultVChunkSize);
         vchunk->Start();
 
@@ -899,7 +925,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             std::make_shared<TWriteBlocksLocalRequest>(TRequestHeaders{
                 .VolumeConfig = PartitionDirectService->GetVolumeConfig(),
                 .RequestId = 1,
-                .Range = range});
+                .Range = ConvertRangeSafe<TBlockRange64>(range)});
         writeRequest->Sglist = MakeSgList();
         auto writeFuture = vchunk->WriteBlocksLocal(
             callContext,
@@ -944,6 +970,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             DirtyMapStateProto,
             DirectBlockGroup,
             3,   // syncRequestsBatchSize
+            DefaultBlockSize,
             DefaultVChunkSize);
         vchunk->Start();
         DrainExecutor(DirectBlockGroup->GetExecutor());
@@ -1019,6 +1046,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             DirtyMapStateProto,
             DirectBlockGroup,
             3,   // syncRequestsBatchSize
+            DefaultBlockSize,
             DefaultVChunkSize);
         vchunk->Start();
         DrainExecutor(DirectBlockGroup->GetExecutor());
@@ -1065,6 +1093,7 @@ Y_UNIT_TEST_SUITE(TVChunkTest)
             DirtyMapStateProto,
             DirectBlockGroup,
             3,   // syncRequestsBatchSize
+            DefaultBlockSize,
             DefaultVChunkSize);
         vchunk->Start();
         DrainExecutor(DirectBlockGroup->GetExecutor());
